@@ -49,6 +49,14 @@ impl CommandReceiver {
 }
 
 pub async fn run<T: Connection>(connections: Vec<T>, command_receiver: CommandReceiver) {
+    use rsa::{PublicKey, RsaPrivateKey, RsaPublicKey, PaddingScheme};
+    use rand::rngs::OsRng;
+
+    let mut rng = OsRng; // TODO: Check security
+    let bits = 4096;
+    let private_key = RsaPrivateKey::new(&mut rng, bits).expect("failed to generate a key");
+    let public_key = RsaPublicKey::from(&private_key);
+
     loop {
         let command = command_receiver.wait_command();
         match command {
