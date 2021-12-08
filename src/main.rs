@@ -48,7 +48,7 @@ impl CommandReceiver {
     }
 }
 
-pub fn run<T: Connection>(connections: Vec<T>, command_receiver: CommandReceiver) {
+pub async fn run<T: Connection>(connections: Vec<T>, command_receiver: CommandReceiver) {
     loop {
         let command = command_receiver.wait_command();
         match command {
@@ -66,8 +66,8 @@ fn main() {
     println!("Hello, world!");
 }
 
-#[test]
-fn thousand_nodes() {
+#[tokio::test]
+async fn thousand_nodes() {
     use rand::Rng;
 
     let mut connections: Vec<Vec<VirtualTcp>> = Vec::new();
@@ -93,7 +93,7 @@ fn thousand_nodes() {
     for connections in connections {
         let (receiver, sender) = CommandReceiver::new();
         command_senders.push(sender);
-        std::thread::spawn(move || run(connections, receiver));
+        tokio::spawn(async move { run(connections, receiver).await });
     }
 
     println!("All nodes running");
