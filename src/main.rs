@@ -1,5 +1,8 @@
 use std::sync::{Arc, Mutex, mpsc};
 
+mod commands;
+use commands::*;
+
 pub trait Connection {
 
 }
@@ -30,37 +33,32 @@ impl Connection for VirtualTcp {
 
 }
 
-#[derive(Debug)]
-pub enum Command {
-    Unparsable(String),
-}
-
-impl Command {
-    pub fn parse(input: &str) -> Command {
-        Command::Unparsable(input.to_string())
-    }
-}
-
 pub struct CommandReceiver {
-    receiver: mpsc::Receiver<String>,
+    receiver: mpsc::Receiver<Command>,
 }
 
 impl CommandReceiver {
-    pub fn new() -> (CommandReceiver, mpsc::Sender<String>) {
+    pub fn new() -> (CommandReceiver, mpsc::Sender<Command>) {
         let (sender, receiver) = mpsc::channel();
         (CommandReceiver { receiver }, sender)
     }
 
     pub fn wait_command(&self) -> Command {
-        let raw_command = self.receiver.recv().unwrap(); // TODO: handle?
-        Command::parse(&raw_command)
+        self.receiver.recv().unwrap() // TODO: handle?
     }
 }
 
 pub fn run<T: Connection>(connections: Vec<T>, command_receiver: CommandReceiver) {
     loop {
         let command = command_receiver.wait_command();
-        println!("{:?}", command);
+        match command {
+            Command::DebugState => {
+                println!("I have {} connections", connections.len());
+            },
+            Command::Unparsable(test) => {
+                println!("Unparsable command: {}", test);
+            },
+        }
     }
 }
 
@@ -101,8 +99,15 @@ fn thousand_nodes() {
     println!("All nodes running");
 
     loop {
-        let mut command = String::new();
-        std::io::stdin().read_line(&mut command).unwrap();
-        
+        let mut raw_command = String::new();
+        std::io::stdin().read_line(&mut raw_command).unwrap();
+        match Command::parse(&raw_command) {
+            Ok((destinators, command)) => {
+                for destinator in destinators {
+                    command_senders[destinator].send(command.clone()).unwrap();
+                }
+            }
+            Err(e) => println!("{}", e),
+        }
     }
 }
