@@ -1,0 +1,8 @@
+[package]
+name = "p2pnet"
+version = "0.1.0"
+edition = "2021"
+authors = ["Mubelotix <mubelotix@gmail.com>"]
+
+[dependencies]
+rand = "0.8"
