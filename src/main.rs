@@ -2,12 +2,22 @@ use std::{sync::Arc, io::Write, future::Future, task::Poll, pin::Pin};
 use log::*;
 use futures::{future::BoxFuture, FutureExt};
 use async_mutex::Mutex;
+use async_channel::{Sender, Receiver};
 use tokio::io::{AsyncRead, AsyncWrite};
 
 mod commands;
 use commands::*;
 
 static mut RUNNING_COMMAND_COUNTER: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+
+#[cfg(not(feature = "test"))]
+type TcpStream = tokio::net::TcpStream;
+#[cfg(feature = "test")]
+type TcpStream = TestStream;
+
+lazy_static::lazy_static!(
+    static ref LISTENERS: Arc<Mutex<Vec<Sender<TcpStream>>>> = Arc::new(Mutex::new(Vec::new()));
+);
 
 pub struct TestStream {
     inbound: Arc<Mutex<Vec<u8>>>,
@@ -94,46 +104,23 @@ impl AsyncWrite for TestStream {
     }
 }
 
+// TODO: error handling
 #[cfg(feature = "test")]
-fn connect(addr: String) -> TestStream {
-    TestStream {
-
+async fn connect(addr: String) -> TcpStream {
+    if !addr.starts_with("local-") {
+        panic!("Only local-* addresses are supported for testing");
     }
+    
+    let (our_stream, their_stream) = TestStream::new();
+
+    LISTENERS.lock().await[addr[7..].parse::<usize>().unwrap()].send(their_stream).await.unwrap();
+    
+    our_stream
 }
 
 #[cfg(not(feature = "test"))]
-fn connect(_addr: String) -> tokio::net::TcpStream {
+async fn connect(_addr: String) -> TcpStream {
     unimplemented!()
-}
-
-pub trait Connection {
-
-}
-
-pub struct VirtualTcp {
-    incoming: Arc<Mutex<Vec<u8>>>,
-    outgoing: Arc<Mutex<Vec<u8>>>,
-}
-
-impl VirtualTcp {
-    pub fn new_channel() -> (VirtualTcp, VirtualTcp) {
-        let incoming = Arc::new(Mutex::new(Vec::new()));
-        let outgoing = Arc::new(Mutex::new(Vec::new()));
-        (
-            VirtualTcp {
-                incoming: incoming.clone(),
-                outgoing: outgoing.clone(),
-            },
-            VirtualTcp {
-                incoming: outgoing,
-                outgoing: incoming,
-            },
-        )
-    }
-}
-
-impl Connection for VirtualTcp {
-
 }
 
 pub struct CommandReceiver {
@@ -151,7 +138,7 @@ impl CommandReceiver {
     }
 }
 
-pub async fn run<T: Connection>(connections: Vec<T>, command_receiver: CommandReceiver) {
+pub async fn run(connection_receiver: Receiver<TcpStream>, command_receiver: CommandReceiver) {
     /*
     use rsa::{PublicKey, RsaPrivateKey, RsaPublicKey, PaddingScheme};
     use rand::rngs::OsRng;
@@ -162,9 +149,26 @@ pub async fn run<T: Connection>(connections: Vec<T>, command_receiver: CommandRe
     let public_key = RsaPublicKey::from(&private_key);
     */
 
+    let mut connections = Vec::new();
+
+    // For now we generate random addresses but in the future we will fetch them
+    for _ in 0..5 {
+        use rand::Rng;
+
+        let n = rand::thread_rng().gen_range(0..1000);
+        let addr = format!("local-{}", n);
+        connections.push(connect(addr));
+    }
+
     loop {
         let command = command_receiver.wait_command().await;
-        info!("{:?}", command);
+
+        match command {
+            Command::ConnCount => {
+                info!("{} connections", connections.len());
+            }
+            command => info!("{:?}", command),
+        }
 
         // Print command input chars if no command is running anymore
         if unsafe { RUNNING_COMMAND_COUNTER.fetch_sub(1, std::sync::atomic::Ordering::Relaxed) } == 1 {
@@ -180,33 +184,15 @@ async fn main() {
 }
 
 async fn thousand_nodes() {
-    use rand::Rng;
     env_logger::init();
 
-    let mut connections: Vec<Vec<VirtualTcp>> = Vec::new();
-
-    for _ in 0..1000 {
-        connections.push(Vec::new());
-    }
-
-    for i in 0..1000 {
-        while connections[i].len() < 8 {
-            let j = rand::thread_rng().gen_range(0..1000);
-            if j != i && connections[j].len() <= 10 {
-                let conn = VirtualTcp::new_channel();
-                connections[i].push(conn.0);
-                connections[j].push(conn.1);
-            }
-        }
-    }
-
-    println!("All connections made");
-
     let mut command_senders = Vec::new();
-    for connections in connections {
-        let (receiver, sender) = CommandReceiver::new();
-        command_senders.push(sender);
-        tokio::spawn(run(connections, receiver));
+    for _ in 0..1000 {
+        let (command_receiver, command_sender) = CommandReceiver::new();
+        command_senders.push(command_sender);
+        let (connection_sender, connection_receiver) = async_channel::unbounded();
+        LISTENERS.lock().await.push(connection_sender);
+        tokio::spawn(run(connection_receiver, command_receiver));
     }
 
     println!("All nodes running");

@@ -470,6 +470,7 @@ dependencies = [
  "async-mutex",
  "env_logger",
  "futures",
+ "lazy_static",
  "log",
  "rand",
  "rsa",

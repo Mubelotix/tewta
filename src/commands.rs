@@ -2,6 +2,7 @@ use structopt::*;
 
 #[derive(StructOpt, Debug, Clone)]
 pub enum Command {
+    ConnCount,
     Add {
         #[structopt(short)]
         interactive: bool,
