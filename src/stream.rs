@@ -96,7 +96,7 @@ mod testing {
             Poll::Ready(Ok(()))
         }
     
-        fn poll_shutdown(self: Pin<&mut Self>, cx: &mut std::task::Context<'_>) -> Poll<Result<(), std::io::Error>> {
+        fn poll_shutdown(self: Pin<&mut Self>, _cx: &mut std::task::Context<'_>) -> Poll<Result<(), std::io::Error>> {
             unimplemented!("Shutdown on virtual testing streams is not implemented");
         }
     }
