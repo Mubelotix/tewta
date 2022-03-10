@@ -1,10 +1,79 @@
-use std::{sync::{Arc, Mutex, mpsc}, io::Write};
+use std::{sync::Arc, io::Write, future::Future, task::Poll, pin::Pin};
 use log::*;
+use futures::{future::BoxFuture, FutureExt};
+use async_mutex::Mutex;
 
 mod commands;
 use commands::*;
+use tokio::io::AsyncRead;
 
 static mut RUNNING_COMMAND_COUNTER: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+
+pub struct TestStream {
+    inbound: Arc<Mutex<Vec<u8>>>,
+    outbound: Arc<Mutex<Vec<u8>>>,
+
+    inbound_lock_fut: Option<BoxFuture<'static, async_mutex::MutexGuardArc<Vec<u8>>>>,
+}
+
+impl TestStream {
+    pub fn new() -> (Self, Self) {
+        let inbound = Arc::new(Mutex::new(Vec::new()));
+        let outbound = Arc::new(Mutex::new(Vec::new()));
+
+        (
+            TestStream {
+                inbound: inbound.clone(),
+                outbound: outbound.clone(),
+                inbound_lock_fut: None
+            },
+            TestStream {
+                inbound: outbound,
+                outbound: inbound,
+                inbound_lock_fut: None
+            },
+        )
+    }
+}
+
+impl AsyncRead for TestStream {
+    /// WARNING: No notification will be sent when data becomes unavailable.  
+    /// This behavior is NOT expected by the trait.
+    fn poll_read(
+        mut self: std::pin::Pin<&mut Self>,
+        cx: &mut std::task::Context<'_>,
+        buf: &mut tokio::io::ReadBuf<'_>,
+    ) -> std::task::Poll<std::io::Result<()>> {
+        if self.inbound_lock_fut.is_none() {
+            let self_inbound = Arc::clone(&self.inbound);
+            self.inbound_lock_fut = Some(async move { self_inbound.lock_arc().await }.boxed());
+        }
+
+        if let Poll::Ready(mut inbound) = self.inbound_lock_fut.as_mut().unwrap().as_mut().poll(cx) {
+            if buf.remaining() < inbound.len() {
+                return Poll::Ready(Err(std::io::Error::new(std::io::ErrorKind::UnexpectedEof, "Buffer too small")));
+            }
+            buf.put_slice(inbound.as_ref());
+            inbound.clear();
+
+            Poll::Ready(Ok(()))
+        } else {
+            Poll::Pending
+        }
+    }
+}
+
+#[cfg(feature = "test")]
+fn connect(addr: String) -> TestStream {
+    TestStream {
+
+    }
+}
+
+#[cfg(not(feature = "test"))]
+fn connect(_addr: String) -> tokio::net::TcpStream {
+    unimplemented!()
+}
 
 pub trait Connection {
 
