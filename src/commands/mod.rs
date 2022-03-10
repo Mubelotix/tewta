@@ -7,7 +7,7 @@ pub use parsing::*;
 
 use structopt::*;
 
-/// A command that can be sent to a node Instance in order to control and debug it.
+/// A command that can executed by a user on its node, in order to control and debug it.
 /// 
 /// When testing, a thousand nodes are running.
 /// Prefix the command by the IDs of the node you want to send that command to.
