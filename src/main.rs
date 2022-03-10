@@ -3,10 +3,12 @@ use log::*;
 use async_mutex::Mutex;
 use async_channel::{Sender, Receiver};
 
-mod commands;
+pub mod commands;
 use commands::*;
-mod stream;
+pub mod stream;
 use stream::*;
+pub mod node;
+use node::*;
 
 static mut RUNNING_COMMAND_COUNTER: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
 
@@ -16,16 +18,23 @@ lazy_static::lazy_static!(
 
 // TODO: error handling
 #[cfg(feature = "test")]
-async fn connect(addr: String) -> TcpStream {
+async fn connect(addr: String) -> Option<TcpStream> {
     if !addr.starts_with("local-") {
         panic!("Only local-* addresses are supported for testing");
     }
     
     let (our_stream, their_stream) = TcpStream::new();
 
-    LISTENERS.lock().await[addr[7..].parse::<usize>().unwrap()].send(their_stream).await.unwrap();
-    
-    our_stream
+    let listeners = LISTENERS.lock().await;
+    let sender = match listeners.get(addr[6..].parse::<usize>().unwrap()) {
+        Some(s) => s,
+        None => return None,
+    };
+
+    match sender.send(their_stream).await {
+        Ok(_) => Some(our_stream),
+        Err(e) => panic!("{}", e),
+    }
 }
 
 #[cfg(not(feature = "test"))]
@@ -44,26 +53,13 @@ pub async fn run(connection_receiver: Receiver<TcpStream>, command_receiver: Com
     let public_key = RsaPublicKey::from(&private_key);
     */
 
-    let mut connections = Vec::new();
+    let node = Node::new().await;
+    std::mem::forget(connection_receiver);
 
-    // For now we generate random addresses but in the future we will fetch them
-    for _ in 0..5 {
-        use rand::Rng;
-
-        let n = rand::thread_rng().gen_range(0..1000);
-        let addr = format!("local-{}", n);
-        connections.push(connect(addr));
-    }
 
     loop {
         let command = command_receiver.wait_command().await;
-
-        match command {
-            Command::ConnCount => {
-                info!("{} connections", connections.len());
-            }
-            command => info!("{:?}", command),
-        }
+        node.lock().await.on_command(command).await;
 
         // Print command input chars if no command is running anymore
         if unsafe { RUNNING_COMMAND_COUNTER.fetch_sub(1, std::sync::atomic::Ordering::Relaxed) } == 1 {
@@ -71,6 +67,7 @@ pub async fn run(connection_receiver: Receiver<TcpStream>, command_receiver: Com
             std::io::stdout().flush().unwrap();
         }
     }
+
 }
 
 #[tokio::main]
