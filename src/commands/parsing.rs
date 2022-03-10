@@ -1,29 +1,17 @@
-use structopt::*;
+use super::*;
 
-#[derive(StructOpt, Debug, Clone)]
-pub enum Command {
-    ConnCount,
-    Add {
-        #[structopt(short)]
-        interactive: bool,
-        #[structopt(short)]
-        patch: bool,
-        #[structopt(long)]
-        files: Vec<String>,
-    },
-    Fetch {
-        #[structopt(long)]
-        dry_run: bool,
-        #[structopt(long)]
-        all: bool,
-        repository: Option<String>,
-    },
-    Commit {
-        #[structopt(short)]
-        message: Option<String>,
-        #[structopt(short)]
-        all: bool,
-    },
+impl Command {
+    pub fn parse(input: &str) -> Result<(Vec<usize>, Command), CommandParsingError> {
+        let (input, destinators) = read_destinators(input.as_bytes())?;
+        let input = unsafe { std::str::from_utf8_unchecked(input) };
+        let input = input.trim();
+        
+        let mut args = vec!["p2pnet"];
+        args.extend(input.split(' '));
+        let command = Command::from_iter_safe(args)?;
+
+        Ok((destinators, command))
+    }
 }
 
 enum DestinatorItem {
@@ -93,45 +81,3 @@ fn read_destinators(mut input: &[u8]) -> Result<(&[u8], Vec<usize>), &'static st
 
     Ok((input, destinators))
 }
-
-#[derive(Debug)]
-pub enum CommandParsingError {
-    Prefix(&'static str),
-    Clap(clap::Error),
-}
-
-impl From<&'static str> for CommandParsingError {
-    fn from(s: &'static str) -> Self {
-        CommandParsingError::Prefix(s)
-    }
-}
-
-impl From<clap::Error> for CommandParsingError {
-    fn from(e: clap::Error) -> Self {
-        CommandParsingError::Clap(e)
-    }
-}
-
-impl std::fmt::Display for CommandParsingError {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        match self {
-            CommandParsingError::Prefix(e) => write!(f, "{}", e),
-            CommandParsingError::Clap(e) => write!(f, "{}", e),
-        }
-    }
-}
-
-impl Command {
-    pub fn parse(input: &str) -> Result<(Vec<usize>, Command), CommandParsingError> {
-        let (input, destinators) = read_destinators(input.as_bytes())?;
-        let input = unsafe { std::str::from_utf8_unchecked(input) };
-        let input = input.trim();
-        
-        let mut args = vec!["p2pnet"];
-        args.extend(input.split(' '));
-        let command = Command::from_iter_safe(args)?;
-
-        Ok((destinators, command))
-    }
-}
-
