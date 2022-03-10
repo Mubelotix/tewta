@@ -5,6 +5,10 @@ edition = "2021"
 authors = ["Mubelotix <mubelotix@gmail.com>"]
 
 [dependencies]
+structopt = "0.3"
+log = "0.4"
+env_logger = "0.9"
+async-channel = "1.6"
 rand = "0.8"
 tokio = { version = "1", features = ["full"] }
 rsa = "0.5"
