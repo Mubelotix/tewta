@@ -2,27 +2,31 @@ use {
     crate::{
         commands::Command,
         stream::TcpStream,
+        packets::*,
         connect,
     },
     std::sync::{Arc, Weak},
     async_mutex::Mutex,
+    async_channel::{Sender, Receiver},
     log::*,
 };
-
-// TODO remove this
-type Packet = ();
 
 pub struct Node {
     connections: Vec<TcpStream>,
     self_ref: Weak<Mutex<Node>>,
+
+    on_ping_packet: Vec<Sender<PingPacket>>,
+    on_pong_packet: Vec<Sender<PingPacket>>,
 }
 
 impl Node {
     pub async fn new() -> Arc<Mutex<Node>> {
         let node = Arc::new(Mutex::new(Node {
             connections: Vec::new(),
-            #[allow(clippy::uninit_assumed_init)]
             self_ref: Weak::new(),
+
+            on_ping_packet: Vec::new(),
+            on_pong_packet: Vec::new(),
         }));
         let self_ref = Arc::downgrade(&node);
 
@@ -67,6 +71,17 @@ impl Node {
     }
 
     pub async fn on_packet(&mut self, p: Packet) {
-
+        match p {
+            Packet::Ping(p) => {
+                for sender in self.on_ping_packet.iter() {
+                    sender.send(p).await.unwrap();
+                }
+            }
+            Packet::Pong(p) => {
+                for sender in self.on_pong_packet.iter() {
+                    sender.send(p).await.unwrap();
+                }
+            }
+        }
     }
 }
