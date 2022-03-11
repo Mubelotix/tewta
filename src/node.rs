@@ -11,12 +11,39 @@ use {
     log::*,
 };
 
+struct EventListeners<T: Clone> {
+    listeners: Vec<Sender<T>>,
+}
+
+impl<T: Clone> EventListeners<T> {
+    fn new() -> Self {
+        Self {
+            listeners: Vec::new(),
+        }
+    }
+
+    async fn event(&mut self, event: T) {
+        for i in (0..self.listeners.len()).rev() {
+            // TODO: check if we could optimize by avoiding cloning the last event
+            if self.listeners[i].send(event.clone()).await.is_err() {
+                self.listeners.remove(i);
+            }
+        }
+    }
+
+    async fn create_listener(&mut self) -> Receiver<T> {
+        let (sender, receiver) = async_channel::unbounded();
+        self.listeners.push(sender);
+        receiver
+    }
+}
+
 pub struct Node {
     connections: Vec<TcpStream>,
     self_ref: Weak<Mutex<Node>>,
 
-    on_ping_packet: Vec<Sender<PingPacket>>,
-    on_pong_packet: Vec<Sender<PingPacket>>,
+    on_ping_packet: EventListeners<PingPacket>,
+    on_pong_packet: EventListeners<PingPacket>,
 }
 
 impl Node {
@@ -25,8 +52,8 @@ impl Node {
             connections: Vec::new(),
             self_ref: Weak::new(),
 
-            on_ping_packet: Vec::new(),
-            on_pong_packet: Vec::new(),
+            on_ping_packet: EventListeners::new(),
+            on_pong_packet: EventListeners::new(),
         }));
         let self_ref = Arc::downgrade(&node);
 
@@ -73,14 +100,10 @@ impl Node {
     pub async fn on_packet(&mut self, p: Packet) {
         match p {
             Packet::Ping(p) => {
-                for sender in self.on_ping_packet.iter() {
-                    sender.send(p).await.unwrap();
-                }
+                self.on_ping_packet.event(p).await;
             }
             Packet::Pong(p) => {
-                for sender in self.on_pong_packet.iter() {
-                    sender.send(p).await.unwrap();
-                }
+                self.on_pong_packet.event(p).await;
             }
         }
     }
