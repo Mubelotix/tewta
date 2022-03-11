@@ -58,10 +58,9 @@ pub async fn run(connection_receiver: Receiver<TcpStream>, command_receiver: Com
     let node = Node::new().await;
     std::mem::forget(connection_receiver);
 
-
     loop {
         let command = command_receiver.wait_command().await;
-        node.lock().await.on_command(command).await;
+        node.on_command(command).await;
 
         // Print command input chars if no command is running anymore
         if unsafe { RUNNING_COMMAND_COUNTER.fetch_sub(1, std::sync::atomic::Ordering::Relaxed) } == 1 {
