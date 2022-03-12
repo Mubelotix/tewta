@@ -15,13 +15,14 @@ pub(self) use {
     std::{
         sync::{Arc, Weak},
         collections::HashMap,
+        cell::UnsafeCell,
     },
     async_mutex::Mutex,
     async_channel::{Sender, Receiver},
-    tokio::io::AsyncWriteExt,
-    protocol::Parcel,
+    tokio::io::{AsyncWriteExt, AsyncReadExt},
+    protocol::{Parcel, Settings as ProtocolSettings},
     log::*,
 };
 
 // TODO: remove this
-type NodeID = u64;
+pub type NodeID = u64;

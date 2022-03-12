@@ -1,7 +1,8 @@
-use std::{sync::Arc, task::Poll, pin::Pin};
-use async_mutex::Mutex;
+use std::{sync::Arc, task::{Poll, Waker}, pin::Pin};
+use async_mutex::{Mutex, MutexGuardArc};
 use futures::{future::BoxFuture, FutureExt};
 use tokio::io::{AsyncRead, AsyncWrite};
+use log::*;
 
 #[cfg(not(feature = "test"))]
 pub type TcpStream = tokio::net::TcpStream;
@@ -11,7 +12,7 @@ pub type TcpStream = testing::TestStream;
 /// While testing, we build a fake network of thousands of nodes.  
 /// We replace the implementation of TcpStream with a local fake stream that's faster and more scalable.  
 #[cfg(feature = "test")]
-mod testing {
+pub mod testing {
     use super::*;
 
     /// A fake [TcpStream] used for [testing].  
@@ -19,34 +20,125 @@ mod testing {
     pub struct TestStream {
         inbound: Arc<Mutex<Vec<u8>>>,
         outbound: Arc<Mutex<Vec<u8>>>,
-    
-        inbound_lock_fut: Option<BoxFuture<'static, async_mutex::MutexGuardArc<Vec<u8>>>>,
-        outbound_lock_fut: Option<BoxFuture<'static, async_mutex::MutexGuardArc<Vec<u8>>>>,
+        to_wake_on_write: Arc<Mutex<Option<Waker>>>,
+        waken_on_readable: Arc<Mutex<Option<Waker>>>,
     }
-    
+
     impl TestStream {
         pub fn new() -> (Self, Self) {
             let inbound = Arc::new(Mutex::new(Vec::new()));
             let outbound = Arc::new(Mutex::new(Vec::new()));
+            let to_wake_on_write = Arc::new(Mutex::new(None));
+            let waken_on_readable = Arc::new(Mutex::new(None));
     
             (
                 TestStream {
                     inbound: inbound.clone(),
                     outbound: outbound.clone(),
-                    inbound_lock_fut: None,
-                    outbound_lock_fut: None,
+                    to_wake_on_write: to_wake_on_write.clone(),
+                    waken_on_readable: waken_on_readable.clone(),
                 },
                 TestStream {
                     inbound: outbound,
                     outbound: inbound,
-                    inbound_lock_fut: None,
-                    outbound_lock_fut: None,
+                    to_wake_on_write: waken_on_readable,
+                    waken_on_readable: to_wake_on_write,
                 },
             )
         }
+
+        pub fn split(&mut self) -> (TestReadHalf, TestWriteHalf) {
+            (
+                TestReadHalf {
+                    data: Arc::clone(&self.inbound),
+                    waken_on_readable: Arc::clone(&self.waken_on_readable),
+                    lock_fut: None,
+                },
+                TestWriteHalf {
+                    data: Arc::clone(&self.outbound),
+                    to_wake_on_write: Arc::clone(&self.to_wake_on_write),
+                    wrote: false,
+                    woke: false,
+                    lock_fut: None,
+                    waker_lock_fut: None,
+                }
+            )
+        }
     }
-    
-    impl AsyncRead for TestStream {
+
+    pub struct TestReadableFuture {
+        data: Arc<Mutex<Vec<u8>>>,
+        waken_on_readable: Arc<Mutex<Option<Waker>>>,
+        lock_fut: Option<BoxFuture<'static, async_mutex::MutexGuardArc<Vec<u8>>>>,
+        waker_lock_fut: Option<BoxFuture<'static, MutexGuardArc<Option<Waker>>>>,
+    }
+
+    impl std::future::Future for TestReadableFuture {
+        type Output = tokio::io::Result<()>;
+
+        fn poll(mut self: Pin<&mut Self>, cx: &mut std::task::Context<'_>) -> Poll<Self::Output> {
+            trace!("Readable: polled");
+
+            // TODO: optimization: don't update if unchanged
+            // Updating waker
+            if self.waker_lock_fut.is_none() {
+                let self_waken_on_readable = Arc::clone(&self.waken_on_readable);
+                self.waker_lock_fut = Some(async move { self_waken_on_readable.lock_arc().await }.boxed());
+            }
+            if let Poll::Ready(mut waker) = self.waker_lock_fut.as_mut().unwrap().as_mut().poll(cx) {
+                self.waker_lock_fut = None;
+                
+                *waker = Some(cx.waker().clone());
+                trace!("Readable: waker updated");
+            }
+            
+            // Checking readable
+            if self.lock_fut.is_none() {
+                let self_outbound = Arc::clone(&self.data);
+                self.lock_fut = Some(async move { self_outbound.lock_arc().await }.boxed());
+            }
+            if let Poll::Ready(data) = self.lock_fut.as_mut().unwrap().as_mut().poll(cx) {
+                self.lock_fut = None;
+                
+                if !data.is_empty() {
+                    trace!("Readable: data available");
+                    return Poll::Ready(Ok(()));
+                } else {
+                    trace!("Readable: not readable")
+                }
+            }
+            
+            Poll::Pending
+        }
+    }
+
+    impl TestReadHalf {
+        pub fn readable(&self) -> TestReadableFuture {
+            TestReadableFuture {
+                data: Arc::clone(&self.data),
+                lock_fut: None,
+                waken_on_readable: Arc::clone(&self.waken_on_readable),
+                waker_lock_fut: None,
+            }
+        }
+    }
+
+    pub struct TestReadHalf {
+        data: Arc<Mutex<Vec<u8>>>,
+        waken_on_readable: Arc<Mutex<Option<Waker>>>,
+        lock_fut: Option<BoxFuture<'static, MutexGuardArc<Vec<u8>>>>,
+    }
+
+    pub struct TestWriteHalf {
+        data: Arc<Mutex<Vec<u8>>>,
+        to_wake_on_write: Arc<Mutex<Option<Waker>>>,
+        wrote: bool,
+        woke: bool,
+        lock_fut: Option<BoxFuture<'static, MutexGuardArc<Vec<u8>>>>,
+        waker_lock_fut: Option<BoxFuture<'static, MutexGuardArc<Option<Waker>>>>,
+    }
+
+    impl AsyncRead for TestReadHalf {
         /// WARNING: No notification will be sent when data becomes unavailable.  
         /// This behavior is NOT expected by the trait.
         fn poll_read(
@@ -54,17 +146,20 @@ mod testing {
             cx: &mut std::task::Context<'_>,
             buf: &mut tokio::io::ReadBuf<'_>,
         ) -> std::task::Poll<std::io::Result<()>> {
-            if self.inbound_lock_fut.is_none() {
-                let self_inbound = Arc::clone(&self.inbound);
-                self.inbound_lock_fut = Some(async move { self_inbound.lock_arc().await }.boxed());
+            if self.lock_fut.is_none() {
+                let self_inbound = Arc::clone(&self.data);
+                self.lock_fut = Some(async move { self_inbound.lock_arc().await }.boxed());
             }
     
-            if let Poll::Ready(mut inbound) = self.inbound_lock_fut.as_mut().unwrap().as_mut().poll(cx) {
-                if buf.remaining() < inbound.len() {
-                    return Poll::Ready(Err(std::io::Error::new(std::io::ErrorKind::UnexpectedEof, "Buffer too small")));
+            if let Poll::Ready(mut data) = self.lock_fut.as_mut().unwrap().as_mut().poll(cx) {
+                self.lock_fut = None;
+                
+                // TODO: smaller buffers
+                if buf.remaining() < data.len() {
+                    return Poll::Ready(Err(std::io::Error::new(std::io::ErrorKind::Other, "Buffer too small")));
                 }
-                buf.put_slice(inbound.as_ref());
-                inbound.clear();
+                buf.put_slice(data.as_ref());
+                data.clear();
     
                 Poll::Ready(Ok(()))
             } else {
@@ -72,23 +167,50 @@ mod testing {
             }
         }
     }
-    
-    impl AsyncWrite for TestStream {
+
+    impl AsyncWrite for TestWriteHalf {
         fn poll_write(
             mut self: Pin<&mut Self>,
             cx: &mut std::task::Context<'_>,
             buf: &[u8],
         ) -> Poll<Result<usize, std::io::Error>> {
-            if self.outbound_lock_fut.is_none() {
-                let self_outbound = Arc::clone(&self.outbound);
-                self.outbound_lock_fut = Some(async move { self_outbound.lock_arc().await }.boxed());
-            }
+            if !self.wrote {
+                if self.lock_fut.is_none() {
+                    let self_outbound = Arc::clone(&self.data);
+                    self.lock_fut = Some(async move { self_outbound.lock_arc().await }.boxed());
+                }
+
+                if let Poll::Ready(mut data) = self.lock_fut.as_mut().unwrap().as_mut().poll(cx) {
+                    self.lock_fut = None;
     
-            if let Poll::Ready(mut outbound) = self.outbound_lock_fut.as_mut().unwrap().as_mut().poll(cx) {
-                outbound.extend_from_slice(buf);
-                Poll::Ready(Ok(buf.len()))
-            } else {
-                Poll::Pending
+                    data.extend_from_slice(buf);
+                    self.wrote = true;
+                    trace!("WriteHalf: wrote {} bytes", buf.len());
+                }
+            }
+            
+            if self.wrote && !self.woke {
+                if self.waker_lock_fut.is_none() {
+                    let self_to_wake_on_write = Arc::clone(&self.to_wake_on_write);
+                    self.waker_lock_fut = Some(async move { self_to_wake_on_write.lock_arc().await }.boxed());
+                }
+
+                if let Poll::Ready(waker) = self.waker_lock_fut.as_mut().unwrap().as_mut().poll(cx) {
+                    self.waker_lock_fut = None;
+                    
+                    if let Some(waker) = waker.clone() {
+                        waker.wake();
+                        trace!("WriteHalf: woke read half");
+                    } else {
+                        warn!("WriteHalf: did not wake");
+                    }
+                    self.woke = true;
+                }
+            }
+            
+            match self.wrote && self.woke {
+                true => Poll::Ready(Ok(buf.len())),
+                false => Poll::Pending,
             }
         }
     

@@ -40,7 +40,7 @@ async fn connect(addr: String) -> Option<TcpStream> {
 }
 
 #[cfg(not(feature = "test"))]
-async fn connect(_addr: String) -> TcpStream {
+async fn connect(_addr: String) -> Option<TcpStream> {
     unimplemented!()
 }
 
@@ -56,7 +56,17 @@ pub async fn run(connection_receiver: Receiver<TcpStream>, command_receiver: Com
     */
 
     let node = Node::new().await;
-    std::mem::forget(connection_receiver);
+
+    let node2 = Arc::clone(&node);
+    #[cfg(feature = "test")]
+    tokio::spawn(async move {
+        loop {
+            let stream = connection_receiver.recv().await.unwrap();
+            use rand::Rng;
+            let random = rand::thread_rng().gen_range(1000..100000);
+            node2.on_connection(random, stream).await;
+        }
+    });
 
     loop {
         let command = command_receiver.wait_command().await;
@@ -80,7 +90,7 @@ async fn thousand_nodes() {
     env_logger::init();
 
     let mut command_senders = Vec::new();
-    for _ in 0..1000 {
+    for _ in 0..if cfg!(feature="onlyfive") {5} else {1000} {
         let (command_receiver, command_sender) = CommandReceiver::new();
         command_senders.push(command_sender);
         let (connection_sender, connection_receiver) = async_channel::unbounded();

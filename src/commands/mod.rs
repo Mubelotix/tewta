@@ -15,7 +15,9 @@ use structopt::*;
 #[derive(StructOpt, Debug, Clone)]
 pub enum Command {
     ConnCount,
-    Ping,
+    Ping {
+        node_id: crate::node::NodeID,
+    },
     Add {
         #[structopt(short)]
         interactive: bool,
