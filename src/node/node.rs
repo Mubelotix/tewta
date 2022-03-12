@@ -27,7 +27,7 @@ impl Node {
             let n = rand::thread_rng().gen_range(0..if cfg!(feature = "onlyfive") { 5 } else { 1000 });
             let addr = format!("local-{}", n);
             if let Some(connection) = connect(addr).await {
-                // TODO: restore that line
+                // TODO [$622cc9e9961a8f0008186a34]: restore that line
                 // self.connections.insert(n, connection).await;
             }
 
@@ -72,7 +72,7 @@ impl Node {
     }
 
     pub async fn on_connection(&self, s: TcpStream) {
-        // TODO: Init connection
+        // TODO [$622cc9e9961a8f0008186a35]: Init connection
         // Say hi to the peer, get its ID and push it to the pool
         // self.connections.insert(n, s).await;
     }
@@ -81,7 +81,7 @@ impl Node {
     /// 
     /// This method will be called concurrently, but only for different nodes.
     /// Meaning packets from the same node will be handled serially.
-    // TODO: Could we use a `&PeerID` to spare clones?
+    // TODO [$622cc9e9961a8f0008186a36]: Could we use a `&PeerID` to spare clones?
     pub async fn on_packet(&self, n: PeerID, p: Packet) {
         debug!("Received packet {:?}", p);
 
