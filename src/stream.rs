@@ -67,63 +67,6 @@ pub mod testing {
         }
     }
 
-    pub struct TestReadableFuture {
-        data: Arc<Mutex<Vec<u8>>>,
-        waken_on_readable: Arc<Mutex<Option<Waker>>>,
-        lock_fut: Option<BoxFuture<'static, async_mutex::MutexGuardArc<Vec<u8>>>>,
-        waker_lock_fut: Option<BoxFuture<'static, MutexGuardArc<Option<Waker>>>>,
-    }
-
-    impl std::future::Future for TestReadableFuture {
-        type Output = tokio::io::Result<()>;
-
-        fn poll(mut self: Pin<&mut Self>, cx: &mut std::task::Context<'_>) -> Poll<Self::Output> {
-            trace!("Readable: polled");
-
-            // TODO: optimization: don't update if unchanged
-            // Updating waker
-            if self.waker_lock_fut.is_none() {
-                let self_waken_on_readable = Arc::clone(&self.waken_on_readable);
-                self.waker_lock_fut = Some(async move { self_waken_on_readable.lock_arc().await }.boxed());
-            }
-            if let Poll::Ready(mut waker) = self.waker_lock_fut.as_mut().unwrap().as_mut().poll(cx) {
-                self.waker_lock_fut = None;
-                
-                *waker = Some(cx.waker().clone());
-                trace!("Readable: waker updated");
-            }
-            
-            // Checking readable
-            if self.lock_fut.is_none() {
-                let self_outbound = Arc::clone(&self.data);
-                self.lock_fut = Some(async move { self_outbound.lock_arc().await }.boxed());
-            }
-            if let Poll::Ready(data) = self.lock_fut.as_mut().unwrap().as_mut().poll(cx) {
-                self.lock_fut = None;
-                
-                if !data.is_empty() {
-                    trace!("Readable: data available");
-                    return Poll::Ready(Ok(()));
-                } else {
-                    trace!("Readable: not readable")
-                }
-            }
-            
-            Poll::Pending
-        }
-    }
-
-    impl TestReadHalf {
-        pub fn readable(&self) -> TestReadableFuture {
-            TestReadableFuture {
-                data: Arc::clone(&self.data),
-                lock_fut: None,
-                waken_on_readable: Arc::clone(&self.waken_on_readable),
-                waker_lock_fut: None,
-            }
-        }
-    }
-
     pub struct TestReadHalf {
         data: Arc<Mutex<Vec<u8>>>,
         waken_on_readable: Arc<Mutex<Option<Waker>>>,
