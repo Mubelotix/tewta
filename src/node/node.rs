@@ -6,8 +6,8 @@ pub struct Node {
 
     ping_id_counter: Counter,
 
-    on_ping_packet: EventListeners<PingPacket>,
-    on_pong_packet: EventListeners<PingPacket>,
+    on_ping_packet: EventListeners<(NodeID, PingPacket)>,
+    on_pong_packet: EventListeners<(NodeID, PingPacket)>,
 }
 
 impl Node {
@@ -53,9 +53,8 @@ impl Node {
                 let pong_receiver = self.on_pong_packet.listen().await;
                 let result = timeout(Duration::from_secs(15), async move {
                     loop {
-                        let pong = pong_receiver.recv().await.unwrap();
-                        // TODO [#7]: check reply is from the right node
-                        if pong.ping_id == ping_id {
+                        let (n, pong) = pong_receiver.recv().await.unwrap();
+                        if pong.ping_id == ping_id && n == node_id {
                             break Instant::now().duration_since(start);
                         }
                     }
@@ -87,10 +86,10 @@ impl Node {
                 let response = Packet::Pong(p);
                 self.connections.send_packet(n, response).await;
 
-                self.on_ping_packet.event(p).await;
+                self.on_ping_packet.event((n, p)).await;
             }
             Packet::Pong(p) => {
-                self.on_pong_packet.event(p).await;
+                self.on_pong_packet.event((n, p)).await;
             }
         }
     }
