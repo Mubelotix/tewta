@@ -10,7 +10,7 @@ type ReadHalf = crate::stream::testing::TestReadHalf;
 type WriteHalf = crate::stream::testing::TestWriteHalf;
 
 pub(super) struct ConnectionPool {
-    // TODO [$622cc9e9961a8f0008186a33]: Is the standard HashMap hashing algorithm secure enough?
+    // TODO [#9]: Is the standard HashMap hashing algorithm secure enough?
     connections: Mutex<HashMap<PeerID, WriteHalf>>,
     node_ref: UnsafeCell<Weak<Node>>,
 }
