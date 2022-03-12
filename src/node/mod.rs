@@ -31,5 +31,5 @@ pub(self) use {
     log::*,
 };
 
-// TODO [$622cb5a5bb01df0009ae49e9]: remove this
+// TODO [#5]: remove this
 pub type NodeID = u64;

@@ -8,7 +8,7 @@ impl<T: Clone> EventListeners<T> {
     pub(super) async fn event(&self, event: T) {
         let mut listeners = self.listeners.lock().await;
         for i in (0..listeners.len()).rev() {
-            // TODO [$622cb5a5bb01df0009ae49e8]: check if we could optimize by avoiding cloning the last event
+            // TODO [#4]: check if we could optimize by avoiding cloning the last event
             if listeners[i].send(event.clone()).await.is_err() {
                 listeners.remove(i);
             }

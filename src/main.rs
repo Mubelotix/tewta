@@ -20,7 +20,7 @@ lazy_static::lazy_static!(
     static ref LISTENERS: Arc<Mutex<Vec<Sender<TcpStream>>>> = Arc::new(Mutex::new(Vec::new()));
 );
 
-// TODO [$622cb5a5bb01df0009ae49e5]: error handling
+// TODO [#1]: error handling
 #[cfg(feature = "test")]
 async fn connect(addr: String) -> Option<TcpStream> {
     if !addr.starts_with("local-") {
