@@ -1,7 +1,10 @@
 use super::*;
 
+#[derive(Default)]
 pub struct Node {
     connections: ConnectionPool,
+
+    ping_id_counter: Counter,
 
     on_ping_packet: EventListeners<PingPacket>,
     on_pong_packet: EventListeners<PingPacket>,
@@ -9,12 +12,7 @@ pub struct Node {
 
 impl Node {
     pub async fn new() -> Arc<Node> {
-        let node = Arc::new(Node {
-            connections: ConnectionPool::new(),
-
-            on_ping_packet: EventListeners::new(),
-            on_pong_packet: EventListeners::new(),
-        });
+        let node = Arc::new(Node::default());
 
         node.connections.set_node_ref(Arc::downgrade(&node));
         node.bootstrap_peers().await;
@@ -46,8 +44,28 @@ impl Node {
                 info!("{} connections ({:?})", self.connections.len().await, self.connections.connected_nodes().await);
             }
             Command::Ping { node_id } => {
-                let p = PingPacket {ping_id: 666};
-                self.connections.send_packet(node_id, Packet::Ping(p)).await;
+                // Send ping
+                let ping_id = self.ping_id_counter.next();
+                let start = Instant::now();
+                self.connections.send_packet(node_id, Packet::Ping(PingPacket { ping_id })).await;
+
+                // Receive pong
+                let pong_receiver = self.on_pong_packet.listen().await;
+                let result = timeout(Duration::from_secs(15), async move {
+                    loop {
+                        let pong = pong_receiver.recv().await.unwrap();
+                        // TODO: check reply is from the right node
+                        if pong.ping_id == ping_id {
+                            break Instant::now().duration_since(start);
+                        }
+                    }
+                }).await;
+
+                // Display result
+                match result {
+                    Ok(d) => info!("Ping is {} ms", d.as_millis()),
+                    Err(_) => info!("Timed out"),
+                }
             }
             c => info!("{:?}", c),
         }
@@ -62,6 +80,8 @@ impl Node {
     /// This method will be called concurrently, but only for different nodes.
     /// Meaning packets from the same node will be handled serially.
     pub async fn on_packet(&self, n: NodeID, p: Packet) {
+        debug!("Received packet {:?}", p);
+
         match p {
             Packet::Ping(p) => {
                 let response = Packet::Pong(p);

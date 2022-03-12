@@ -5,12 +5,6 @@ pub(super) struct EventListeners<T: Clone> {
 }
 
 impl<T: Clone> EventListeners<T> {
-    pub(super) fn new() -> Self {
-        Self {
-            listeners: Mutex::new(Vec::new()),
-        }
-    }
-
     pub(super) async fn event(&self, event: T) {
         let mut listeners = self.listeners.lock().await;
         for i in (0..listeners.len()).rev() {
@@ -21,10 +15,18 @@ impl<T: Clone> EventListeners<T> {
         }
     }
 
-    pub async fn create_listener(&mut self) -> Receiver<T> {
+    pub async fn listen(&self) -> Receiver<T> {
         let mut listeners = self.listeners.lock().await;
         let (sender, receiver) = async_channel::unbounded();
         listeners.push(sender);
         receiver
+    }
+}
+
+impl<T: Clone> Default for EventListeners<T> {
+    fn default() -> EventListeners<T> {
+        EventListeners {
+            listeners: Mutex::new(Vec::new()),
+        }
     }
 }

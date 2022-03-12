@@ -17,21 +17,10 @@ pub(super) struct ConnectionPool {
 unsafe impl Sync for ConnectionPool {}
 
 impl ConnectionPool {
-    pub(super) fn new() -> Self {
-        Self {
-            connections: Mutex::new(HashMap::new()),
-            node_ref: UnsafeCell::new(Weak::new()),
-        }
-    }
-
     pub(super) fn set_node_ref(&self, node_ref: Weak<Node>) {
         unsafe {
             *self.node_ref.get() = node_ref;
         }
-    }
-
-    fn node(&self) -> Weak<Node> {
-        unsafe {Weak::clone(&*self.node_ref.get())}
     }
 
     pub(super) async fn send_packet(&self, n: NodeID, p: Packet) {
@@ -91,7 +80,6 @@ impl ConnectionPool {
                         continue;
                     },
                 };
-                debug!("Packet parsed {:?}", packet);
 
                 // Handle packet
                 // Warning: This blocks the packet receiving loop.
@@ -109,5 +97,14 @@ impl ConnectionPool {
     pub(super) async fn connected_nodes(&self) -> Vec<NodeID> {
         let connections = self.connections.lock().await;
         connections.keys().cloned().collect()
+    }
+}
+
+impl Default for ConnectionPool {
+    fn default() -> ConnectionPool {
+        ConnectionPool {
+            connections: Mutex::new(HashMap::new()),
+            node_ref: UnsafeCell::new(Weak::new()),
+        }
     }
 }
