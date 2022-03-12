@@ -16,7 +16,7 @@ use structopt::*;
 pub enum Command {
     ConnCount,
     Ping {
-        node_id: crate::node::NodeID,
+        node_id: crate::peers::PeerID,
     },
     Add {
         #[structopt(short)]

@@ -10,7 +10,8 @@ type ReadHalf = crate::stream::testing::TestReadHalf;
 type WriteHalf = crate::stream::testing::TestWriteHalf;
 
 pub(super) struct ConnectionPool {
-    connections: Mutex<HashMap<NodeID, WriteHalf>>,
+    // TODO: Is the standard HashMap hashing algorithm secure enough?
+    connections: Mutex<HashMap<PeerID, WriteHalf>>,
     node_ref: UnsafeCell<Weak<Node>>,
 }
 
@@ -23,7 +24,7 @@ impl ConnectionPool {
         }
     }
 
-    pub(super) async fn send_packet(&self, n: NodeID, p: Packet) {
+    pub(super) async fn send_packet(&self, n: &PeerID, p: Packet) {
         let p = match p.raw_bytes(&protocol::Settings::default()) {
             Ok(p) => p,
             Err(e) => {
@@ -34,7 +35,7 @@ impl ConnectionPool {
 
         let mut connections = self.connections.lock().await;
 
-        let tcp_stream = match connections.get_mut(&n) {
+        let tcp_stream = match connections.get_mut(n) {
             Some(s) => s,
             None => {
                 warn!("no connection to {}", n);
@@ -52,10 +53,10 @@ impl ConnectionPool {
     }
 
     // TODO [#2]: n should be removed
-    pub(super) async fn insert(&self, n: NodeID, mut s: TcpStream) {
+    pub(super) async fn insert(&self, n: PeerID, mut s: TcpStream) {
         let mut connections = self.connections.lock().await;
         let (mut read_stream, write_stream) = s.into_split();
-        connections.insert(n, write_stream);
+        connections.insert(n.clone(), write_stream);
         let node = Weak::clone(unsafe {&*self.node_ref.get()});
 
         // Listen for messages from the remote node
@@ -83,7 +84,7 @@ impl ConnectionPool {
 
                 // Handle packet
                 // Warning: This blocks the packet receiving loop.
-                node.upgrade().unwrap().on_packet(n, packet).await;
+                node.upgrade().unwrap().on_packet(n.clone(), packet).await;
             }
         });
     }
@@ -94,7 +95,7 @@ impl ConnectionPool {
     }
 
     /// Returns a list of all connected node IDs
-    pub(super) async fn connected_nodes(&self) -> Vec<NodeID> {
+    pub(super) async fn connected_nodes(&self) -> Vec<PeerID> {
         let connections = self.connections.lock().await;
         connections.keys().cloned().collect()
     }

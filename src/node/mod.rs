@@ -12,6 +12,7 @@ pub(self) use {
         commands::Command,
         stream::TcpStream,
         packets::*,
+        peers::PeerID,
         connect,
     },
     std::{
@@ -30,6 +31,3 @@ pub(self) use {
     protocol::{Parcel, Settings as ProtocolSettings},
     log::*,
 };
-
-// TODO [#5]: remove this
-pub type NodeID = u64;

@@ -13,6 +13,8 @@ pub mod node;
 use node::*;
 pub mod packets;
 use packets::*;
+pub mod peers;
+use peers::*;
 
 static mut RUNNING_COMMAND_COUNTER: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
 
@@ -64,9 +66,7 @@ pub async fn run(connection_receiver: Receiver<TcpStream>, command_receiver: Com
     tokio::spawn(async move {
         loop {
             let stream = connection_receiver.recv().await.unwrap();
-            use rand::Rng;
-            let random = rand::thread_rng().gen_range(1000..100000);
-            node2.on_connection(random, stream).await;
+            node2.on_connection(stream).await;
         }
     });
 
