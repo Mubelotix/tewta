@@ -5,6 +5,8 @@ I have **no idea** what I am doing, hence the need for this project.
 
 The end goal is to achieve a fully functional distributed clone of Twitter.
 
+**WARNING: currently unlicensed**
+
 ## Non-goals
 
 - Care about NAT traversal. Users gotta have to fix their shitty network settings.*
