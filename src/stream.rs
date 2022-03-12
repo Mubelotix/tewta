@@ -47,7 +47,7 @@ pub mod testing {
             )
         }
 
-        pub fn split(&mut self) -> (TestReadHalf, TestWriteHalf) {
+        pub fn into_split(&mut self) -> (TestReadHalf, TestWriteHalf) {
             (
                 TestReadHalf {
                     data: Arc::clone(&self.inbound),

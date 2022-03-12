@@ -1,22 +1,22 @@
 use super::*;
 
 #[cfg(not(feature = "test"))]
-type ReadHalf<'a> = tokio::net::tcp::ReadHalf<'a>;
+type ReadHalf = tokio::net::tcp::OwnedReadHalf;
 #[cfg(not(feature = "test"))]
-type WriteHalf<'a> = tokio::net::tcp::WriteHalf<'a>;
+type WriteHalf = tokio::net::tcp::OwnedWriteHalf;
 #[cfg(feature = "test")]
-type ReadHalf<'a> = crate::stream::testing::TestReadHalf;
+type ReadHalf = crate::stream::testing::TestReadHalf;
 #[cfg(feature = "test")]
-type WriteHalf<'a> = crate::stream::testing::TestWriteHalf;
+type WriteHalf = crate::stream::testing::TestWriteHalf;
 
-pub(super) struct ConnectionPool<'a> {
-    connections: Mutex<HashMap<NodeID, WriteHalf<'a>>>,
-    node_ref: UnsafeCell<Weak<Node<'a>>>,
+pub(super) struct ConnectionPool {
+    connections: Mutex<HashMap<NodeID, WriteHalf>>,
+    node_ref: UnsafeCell<Weak<Node>>,
 }
 
-unsafe impl<'a> Sync for ConnectionPool<'a> {}
+unsafe impl Sync for ConnectionPool {}
 
-impl<'a> ConnectionPool<'a> {
+impl ConnectionPool {
     pub(super) fn new() -> Self {
         Self {
             connections: Mutex::new(HashMap::new()),
@@ -24,10 +24,14 @@ impl<'a> ConnectionPool<'a> {
         }
     }
 
-    pub(super) fn set_node_ref(&self, node_ref: Weak<Node<'a>>) {
+    pub(super) fn set_node_ref(&self, node_ref: Weak<Node>) {
         unsafe {
             *self.node_ref.get() = node_ref;
         }
+    }
+
+    fn node(&self) -> Weak<Node> {
+        unsafe {Weak::clone(&*self.node_ref.get())}
     }
 
     pub(super) async fn send_packet(&self, n: NodeID, p: Packet) {
@@ -61,8 +65,9 @@ impl<'a> ConnectionPool<'a> {
     // TODO: n should be removed
     pub(super) async fn insert(&self, n: NodeID, mut s: TcpStream) {
         let mut connections = self.connections.lock().await;
-        let (mut read_stream, write_stream) = s.split();
+        let (mut read_stream, write_stream) = s.into_split();
         connections.insert(n, write_stream);
+        let node = Weak::clone(unsafe {&*self.node_ref.get()});
 
         // Listen for messages from the remote node
         tokio::spawn(async move {
@@ -71,7 +76,7 @@ impl<'a> ConnectionPool<'a> {
                 let packet_size = read_stream.read_u32().await.unwrap();
                 // TODO: Add setting for max packet size
                 if packet_size >= 1_000_000 {
-                    error!("packet size too large");
+                    warn!("packet size too large");
                     unimplemented!("Recovery of packet size too large");
                 }
                 let mut packet = Vec::with_capacity(packet_size as usize);
@@ -82,12 +87,15 @@ impl<'a> ConnectionPool<'a> {
                 let packet: Packet = match Parcel::from_raw_bytes(&packet, &ProtocolSettings::default()) {
                     Ok(p) => p,
                     Err(e) => {
-                        error!("{:?}", e);
+                        warn!("Failed to parse packet {:?}", e);
                         continue;
                     },
                 };
-
                 debug!("Packet parsed {:?}", packet);
+
+                // Handle packet
+                // Warning: This blocks the packet receiving loop.
+                node.upgrade().unwrap().on_packet(n, packet).await;
             }
         });
     }

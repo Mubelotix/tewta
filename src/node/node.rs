@@ -1,14 +1,14 @@
 use super::*;
 
-pub struct Node<'a> {
-    connections: ConnectionPool<'a>,
+pub struct Node {
+    connections: ConnectionPool,
 
     on_ping_packet: EventListeners<PingPacket>,
     on_pong_packet: EventListeners<PingPacket>,
 }
 
-impl<'a> Node<'a> {
-    pub async fn new() -> Arc<Node<'a>> {
+impl Node {
+    pub async fn new() -> Arc<Node> {
         let node = Arc::new(Node {
             connections: ConnectionPool::new(),
 
@@ -16,6 +16,7 @@ impl<'a> Node<'a> {
             on_pong_packet: EventListeners::new(),
         });
 
+        node.connections.set_node_ref(Arc::downgrade(&node));
         node.bootstrap_peers().await;
 
         node
@@ -56,6 +57,10 @@ impl<'a> Node<'a> {
         self.connections.insert(n, s).await;
     }
 
+    /// Handles a packet by executing the default associated implementation and notifying event listeners.
+    /// 
+    /// This method will be called concurrently, but only for different nodes.
+    /// Meaning packets from the same node will be handled serially.
     pub async fn on_packet(&self, n: NodeID, p: Packet) {
         match p {
             Packet::Ping(p) => {
