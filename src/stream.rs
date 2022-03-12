@@ -53,6 +53,7 @@ pub mod testing {
                     data: Arc::clone(&self.inbound),
                     waken_on_readable: Arc::clone(&self.waken_on_readable),
                     lock_fut: None,
+                    waker_lock_fut: None,
                 },
                 TestWriteHalf {
                     data: Arc::clone(&self.outbound),
@@ -127,6 +128,7 @@ pub mod testing {
         data: Arc<Mutex<Vec<u8>>>,
         waken_on_readable: Arc<Mutex<Option<Waker>>>,
         lock_fut: Option<BoxFuture<'static, MutexGuardArc<Vec<u8>>>>,
+        waker_lock_fut: Option<BoxFuture<'static, MutexGuardArc<Option<Waker>>>>,
     }
 
     pub struct TestWriteHalf {
@@ -139,32 +141,51 @@ pub mod testing {
     }
 
     impl AsyncRead for TestReadHalf {
-        /// WARNING: No notification will be sent when data becomes unavailable.  
-        /// This behavior is NOT expected by the trait.
         fn poll_read(
             mut self: std::pin::Pin<&mut Self>,
             cx: &mut std::task::Context<'_>,
             buf: &mut tokio::io::ReadBuf<'_>,
         ) -> std::task::Poll<std::io::Result<()>> {
-            if self.lock_fut.is_none() {
-                let self_inbound = Arc::clone(&self.data);
-                self.lock_fut = Some(async move { self_inbound.lock_arc().await }.boxed());
+            trace!("ReadHalf: polled");
+
+            // TODO: optimization: don't update if unchanged
+            // Updating waker
+            if self.waker_lock_fut.is_none() {
+                let self_waken_on_readable = Arc::clone(&self.waken_on_readable);
+                self.waker_lock_fut = Some(async move { self_waken_on_readable.lock_arc().await }.boxed());
             }
-    
+            if let Poll::Ready(mut waker) = self.waker_lock_fut.as_mut().unwrap().as_mut().poll(cx) {
+                self.waker_lock_fut = None;
+                
+                *waker = Some(cx.waker().clone());
+                trace!("ReadHalf: waker updated");
+            }
+            
+            // Checking readable
+            if self.lock_fut.is_none() {
+                let self_outbound = Arc::clone(&self.data);
+                self.lock_fut = Some(async move { self_outbound.lock_arc().await }.boxed());
+            }
             if let Poll::Ready(mut data) = self.lock_fut.as_mut().unwrap().as_mut().poll(cx) {
                 self.lock_fut = None;
                 
-                // TODO: smaller buffers
-                if buf.remaining() < data.len() {
-                    return Poll::Ready(Err(std::io::Error::new(std::io::ErrorKind::Other, "Buffer too small")));
+                if !data.is_empty() {
+                    trace!("ReadHalf: data read");
+                    if buf.remaining() < data.len() {
+                        let size = buf.remaining();
+                        buf.put_slice(&data[..size]);
+                        data.drain(..size);
+                    } else {
+                        buf.put_slice(data.as_slice());
+                        data.clear();
+                    }
+                    return Poll::Ready(Ok(()));
+                } else {
+                    trace!("ReadHalf: not readable")
                 }
-                buf.put_slice(data.as_ref());
-                data.clear();
-    
-                Poll::Ready(Ok(()))
-            } else {
-                Poll::Pending
             }
+            
+            Poll::Pending
         }
     }
 
@@ -209,7 +230,11 @@ pub mod testing {
             }
             
             match self.wrote && self.woke {
-                true => Poll::Ready(Ok(buf.len())),
+                true => {
+                    self.wrote = false;
+                    self.woke = false;
+                    Poll::Ready(Ok(buf.len()))
+                },
                 false => Poll::Pending,
             }
         }

@@ -49,7 +49,13 @@ impl<'a> ConnectionPool<'a> {
             },
         };
 
+        // Write packet prefixed with length
+        let len = p.len() as u32;
+        let mut buf = [0u8; 4];
+        buf.copy_from_slice(&len.to_be_bytes());
+        tcp_stream.write_all(&buf).await.unwrap();
         tcp_stream.write_all(&p).await.unwrap();
+        trace!("packet written to {}: {:?}", n, p);
     }
 
     // TODO: n should be removed
@@ -60,17 +66,8 @@ impl<'a> ConnectionPool<'a> {
 
         // Listen for messages from the remote node
         tokio::spawn(async move {
-            use rand::Rng;
-            //let random = rand::thread_rng().gen_range(0..1000);
-            let mut x = 0;
             loop {
-                // wait readable 
-                let future = read_stream.readable();
-                let r = future.await;
-
-                info!("SOMETHING IS READABLE");
-
-                /*// Read packet
+                // Read packet
                 let packet_size = read_stream.read_u32().await.unwrap();
                 // TODO: Add setting for max packet size
                 if packet_size >= 1_000_000 {
@@ -78,9 +75,8 @@ impl<'a> ConnectionPool<'a> {
                     unimplemented!("Recovery of packet size too large");
                 }
                 let mut packet = Vec::with_capacity(packet_size as usize);
+                unsafe {packet.set_len(packet_size as usize)};
                 read_stream.read_exact(&mut packet).await.unwrap();
-
-                println!("Packet obtained");
 
                 // Parse packet
                 let packet: Packet = match Parcel::from_raw_bytes(&packet, &ProtocolSettings::default()) {
@@ -89,7 +85,9 @@ impl<'a> ConnectionPool<'a> {
                         error!("{:?}", e);
                         continue;
                     },
-                }; */
+                };
+
+                debug!("Packet parsed {:?}", packet);
             }
         });
     }

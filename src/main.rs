@@ -1,3 +1,5 @@
+#![allow(clippy::uninit_vec)]
+
 use std::{sync::Arc, io::Write};
 use log::*;
 use async_mutex::Mutex;
