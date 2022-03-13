@@ -1,13 +1,13 @@
 use super::*;
 
 #[cfg(not(feature = "test"))]
-type ReadHalf = tokio::net::tcp::OwnedReadHalf;
+pub type ReadHalf = tokio::net::tcp::OwnedReadHalf;
 #[cfg(not(feature = "test"))]
-type WriteHalf = tokio::net::tcp::OwnedWriteHalf;
+pub type WriteHalf = tokio::net::tcp::OwnedWriteHalf;
 #[cfg(feature = "test")]
-type ReadHalf = crate::stream::testing::TestReadHalf;
+pub type ReadHalf = crate::stream::testing::TestReadHalf;
 #[cfg(feature = "test")]
-type WriteHalf = crate::stream::testing::TestWriteHalf;
+pub type WriteHalf = crate::stream::testing::TestWriteHalf;
 
 pub(super) struct ConnectionPool {
     // TODO [#9]: Is the standard HashMap hashing algorithm secure enough?
@@ -25,7 +25,7 @@ impl ConnectionPool {
     }
 
     pub(super) async fn send_packet(&self, n: &PeerID, p: Packet) {
-        let p = match p.raw_bytes(&protocol::Settings::default()) {
+        let p = match p.raw_bytes(&PROTOCOL_SETTINGS) {
             Ok(p) => p,
             Err(e) => {
                 error!("{:?}", e);
@@ -74,7 +74,7 @@ impl ConnectionPool {
                 read_stream.read_exact(&mut packet).await.unwrap();
 
                 // Parse packet
-                let packet: Packet = match Parcel::from_raw_bytes(&packet, &ProtocolSettings::default()) {
+                let packet: Packet = match Parcel::from_raw_bytes(&packet, &PROTOCOL_SETTINGS) {
                     Ok(p) => p,
                     Err(e) => {
                         warn!("Failed to parse packet {:?}", e);

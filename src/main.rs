@@ -1,4 +1,5 @@
 #![allow(clippy::uninit_vec)]
+#![allow(clippy::uninit_assumed_init)]
 
 use std::{sync::Arc, io::Write};
 use log::*;
@@ -21,6 +22,17 @@ static mut RUNNING_COMMAND_COUNTER: std::sync::atomic::AtomicUsize = std::sync::
 lazy_static::lazy_static!(
     static ref LISTENERS: Arc<Mutex<Vec<Sender<TcpStream>>>> = Arc::new(Mutex::new(Vec::new()));
 );
+
+pub mod constants {
+    pub const PROTOCOL_VERSION: (u32, u32, u32) = (0, 0, 1);
+    #[cfg(feature = "test")]
+    pub const RSA_KEY_LENGHT: usize = 1024;
+    #[cfg(not(feature = "test"))]
+    pub const RSA_KEY_LENGHT: usize = 4096;
+    pub const PROTOCOL_SETTINGS: protocol::Settings = protocol::Settings {
+        byte_order: protocol::ByteOrder::LittleEndian,
+    };
+}
 
 // TODO [#1]: error handling
 #[cfg(feature = "test")]
@@ -49,16 +61,6 @@ async fn connect(_addr: String) -> Option<TcpStream> {
 }
 
 pub async fn run(connection_receiver: Receiver<TcpStream>, command_receiver: CommandReceiver) {
-    /*
-    use rsa::{PublicKey, RsaPrivateKey, RsaPublicKey, PaddingScheme};
-    use rand::rngs::OsRng;
-
-    let mut rng = OsRng; // TODO: Check security
-    let bits = 4096;
-    let private_key = RsaPrivateKey::new(&mut rng, bits).expect("failed to generate a key");
-    let public_key = RsaPublicKey::from(&private_key);
-    */
-
     let node = Node::new().await;
 
     let node2 = Arc::clone(&node);
@@ -100,7 +102,7 @@ async fn thousand_nodes() {
         tokio::spawn(run(connection_receiver, command_receiver));
     }
 
-    println!("All nodes running");
+    info!("All nodes running");
 
     print!("\x1b[32m>>> \x1b[0m");
     loop {

@@ -1,8 +1,11 @@
 use super::*;
 
-#[derive(Default)]
 pub struct Node {
     connections: ConnectionPool,
+
+    rsa_private_key: RsaPrivateKey,
+    rsa_public_key: RsaPublicKey,
+    peer_id: PeerID,
 
     ping_id_counter: Counter,
 
@@ -12,10 +15,30 @@ pub struct Node {
 
 impl Node {
     pub async fn new() -> Arc<Node> {
-        let node = Arc::new(Node::default());
+        debug!("Generating RSA key pair...");
+        let private_key = RsaPrivateKey::new(&mut OsRng, RSA_KEY_LENGHT).expect("failed to generate a key");
+        let public_key = RsaPublicKey::from(&private_key);
+        debug!("RSA keys generated!");
+
+        let node = Arc::new(Node {
+            connections: ConnectionPool::default(),
+
+            peer_id: PeerID::from(&public_key),
+            rsa_private_key: private_key,
+            rsa_public_key: public_key,
+
+            ping_id_counter: Counter::default(),
+
+            on_ping_packet: EventListeners::default(),
+            on_pong_packet: EventListeners::default(),
+        });
 
         node.connections.set_node_ref(Arc::downgrade(&node));
-        node.bootstrap_peers().await;
+
+        let node2 = Arc::clone(&node);
+        tokio::spawn(async move {
+            node2.bootstrap_peers().await;
+        });
 
         node
     }
@@ -26,9 +49,8 @@ impl Node {
     
             let n = rand::thread_rng().gen_range(0..if cfg!(feature = "onlyfive") { 5 } else { 1000 });
             let addr = format!("local-{}", n);
-            if let Some(connection) = connect(addr).await {
-                // TODO [#10]: restore that line
-                // self.connections.insert(n, connection).await;
+            if let Some(s) = connect(addr).await {
+                self.on_connection(s).await;
             }
 
             if self.connections.len().await >= 5 {
@@ -72,9 +94,20 @@ impl Node {
     }
 
     pub async fn on_connection(&self, s: TcpStream) {
-        // TODO [#11]: Init connection
-        // Say hi to the peer, get its ID and push it to the pool
-        // self.connections.insert(n, s).await;
+        // TODO: Add timeout on handshake
+
+        let r = match handshake(s, &self.peer_id, &self.rsa_public_key, &self.rsa_private_key).await {
+            Ok(r) => r,
+            Err(e) => {
+                // TODO: We should send quit on errors before terminating the connection
+                error!("Handshake failed: {:?}", e);
+                return;
+            }
+        };
+
+        info!("successful handshake");
+
+        self.connections.insert(r.their_peer_id, r.stream).await;
     }
 
     /// Handles a packet by executing the default associated implementation and notifying event listeners.
@@ -95,6 +128,7 @@ impl Node {
             Packet::Pong(p) => {
                 self.on_pong_packet.event((n, p)).await;
             }
+            _ => todo!(),
         }
     }
 }

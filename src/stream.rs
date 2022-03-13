@@ -2,6 +2,7 @@ use std::{sync::Arc, task::{Poll, Waker}, pin::Pin};
 use async_mutex::{Mutex, MutexGuardArc};
 use futures::{future::BoxFuture, FutureExt};
 use tokio::io::{AsyncRead, AsyncWrite};
+use rand::Rng;
 use log::*;
 
 #[cfg(not(feature = "test"))]
@@ -22,6 +23,7 @@ pub mod testing {
         outbound: Arc<Mutex<Vec<u8>>>,
         to_wake_on_write: Arc<Mutex<Option<Waker>>>,
         waken_on_readable: Arc<Mutex<Option<Waker>>>,
+        log_id: (usize, bool),
     }
 
     impl TestStream {
@@ -30,6 +32,8 @@ pub mod testing {
             let outbound = Arc::new(Mutex::new(Vec::new()));
             let to_wake_on_write = Arc::new(Mutex::new(None));
             let waken_on_readable = Arc::new(Mutex::new(None));
+            // generate random log_id
+            let log_id = rand::thread_rng().gen_range(0..1000000);
     
             (
                 TestStream {
@@ -37,12 +41,14 @@ pub mod testing {
                     outbound: outbound.clone(),
                     to_wake_on_write: to_wake_on_write.clone(),
                     waken_on_readable: waken_on_readable.clone(),
+                    log_id: (log_id, true),
                 },
                 TestStream {
                     inbound: outbound,
                     outbound: inbound,
                     to_wake_on_write: waken_on_readable,
                     waken_on_readable: to_wake_on_write,
+                    log_id: (log_id, false),
                 },
             )
         }
@@ -54,6 +60,7 @@ pub mod testing {
                     waken_on_readable: Arc::clone(&self.waken_on_readable),
                     lock_fut: None,
                     waker_lock_fut: None,
+                    log_id: self.log_id,
                 },
                 TestWriteHalf {
                     data: Arc::clone(&self.outbound),
@@ -62,6 +69,7 @@ pub mod testing {
                     woke: false,
                     lock_fut: None,
                     waker_lock_fut: None,
+                    log_id: self.log_id,
                 }
             )
         }
@@ -72,6 +80,7 @@ pub mod testing {
         waken_on_readable: Arc<Mutex<Option<Waker>>>,
         lock_fut: Option<BoxFuture<'static, MutexGuardArc<Vec<u8>>>>,
         waker_lock_fut: Option<BoxFuture<'static, MutexGuardArc<Option<Waker>>>>,
+        log_id: (usize, bool),
     }
 
     pub struct TestWriteHalf {
@@ -81,6 +90,20 @@ pub mod testing {
         woke: bool,
         lock_fut: Option<BoxFuture<'static, MutexGuardArc<Vec<u8>>>>,
         waker_lock_fut: Option<BoxFuture<'static, MutexGuardArc<Option<Waker>>>>,
+        log_id: (usize, bool),
+    }
+
+    impl TestReadHalf {
+        pub fn reunite(self, other: TestWriteHalf) -> Result<TestStream, tokio::net::tcp::ReuniteError> {
+            assert_eq!(self.log_id, other.log_id);
+            Ok(TestStream {
+                inbound: self.data,
+                outbound: other.data,
+                to_wake_on_write: other.to_wake_on_write,
+                waken_on_readable: self.waken_on_readable,
+                log_id: self.log_id,
+            })
+        }
     }
 
     impl AsyncRead for TestReadHalf {
@@ -89,7 +112,7 @@ pub mod testing {
             cx: &mut std::task::Context<'_>,
             buf: &mut tokio::io::ReadBuf<'_>,
         ) -> std::task::Poll<std::io::Result<()>> {
-            trace!("ReadHalf: polled");
+            trace!("ReadHalf {}{}: polled", self.log_id.0, ['A', 'B'][self.log_id.1 as usize]);
 
             // TODO [#8]: optimization: don't update if unchanged
             // Updating waker
@@ -101,7 +124,7 @@ pub mod testing {
                 self.waker_lock_fut = None;
                 
                 *waker = Some(cx.waker().clone());
-                trace!("ReadHalf: waker updated");
+                trace!("ReadHalf {}{}: waker updated", self.log_id.0, ['A', 'B'][self.log_id.1 as usize]);
             }
             
             // Checking readable
@@ -113,7 +136,7 @@ pub mod testing {
                 self.lock_fut = None;
                 
                 if !data.is_empty() {
-                    trace!("ReadHalf: data read");
+                    trace!("ReadHalf {}{}: data ready", self.log_id.0, ['A', 'B'][self.log_id.1 as usize]);
                     if buf.remaining() < data.len() {
                         let size = buf.remaining();
                         buf.put_slice(&data[..size]);
@@ -124,7 +147,7 @@ pub mod testing {
                     }
                     return Poll::Ready(Ok(()));
                 } else {
-                    trace!("ReadHalf: not readable")
+                    trace!("ReadHalf {}{}: not readable", self.log_id.0, ['A', 'B'][self.log_id.1 as usize]);
                 }
             }
             
@@ -149,7 +172,7 @@ pub mod testing {
     
                     data.extend_from_slice(buf);
                     self.wrote = true;
-                    trace!("WriteHalf: wrote {} bytes", buf.len());
+                    trace!("WriteHalf {}{}: wrote {} bytes", self.log_id.0, ['A', 'B'][self.log_id.1 as usize], buf.len());
                 }
             }
             
@@ -164,9 +187,9 @@ pub mod testing {
                     
                     if let Some(waker) = waker.clone() {
                         waker.wake();
-                        trace!("WriteHalf: woke read half");
+                        trace!("WriteHalf {}{}: woke read half", self.log_id.0, ['A', 'B'][self.log_id.1 as usize]);
                     } else {
-                        warn!("WriteHalf: did not wake");
+                        warn!("WriteHalf {}{}: did not wake", self.log_id.0, ['A', 'B'][self.log_id.1 as usize]);
                     }
                     self.woke = true;
                 }
