@@ -72,6 +72,6 @@ pub struct PingPacket {
 #[derive(Protocol, Debug, Clone)]
 pub struct QuitPacket {
     pub code: String,
-    // TODO: Add message in `Quit` packet
+    // TODO [$622e6aa13b6bcf0009d7b1b2]: Add message in `Quit` packet
     // pub message: String,
 }

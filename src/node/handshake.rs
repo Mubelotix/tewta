@@ -1,6 +1,6 @@
 use super::*;
 
-// TODO: HandshakeError should implement Display
+// TODO [$622e6aa13b6bcf0009d7b1ac]: HandshakeError should implement Display
 
 #[derive(Debug)]
 pub enum HandshakeError {
@@ -22,10 +22,10 @@ pub struct HandshakeData {
 }
 
 pub async fn handshake(mut stream: TcpStream, our_peer_id: &PeerID, our_public_key: &RsaPublicKey, our_private_key: &RsaPrivateKey) -> Result<HandshakeData, HandshakeError> {
-    // TODO: Handle errors during handshake
+    // TODO [$622e6aa13b6bcf0009d7b1ad]: Handle errors during handshake
     // There are way too many unwraps
 
-    // TODO: Prevent DOS when receiving packets (packet size)
+    // TODO [$622e6aa13b6bcf0009d7b1ae]: Prevent DOS when receiving packets (packet size)
 
     let (mut r, mut w) = stream.into_split();
 
@@ -51,7 +51,7 @@ pub async fn handshake(mut stream: TcpStream, our_peer_id: &PeerID, our_public_k
     let p = Packet::from_raw_bytes(&p, &PROTOCOL_SETTINGS).unwrap();
     match p {
         Packet::ProtocolVersion(p) => {
-            // TODO: We should also accept versions with only the patch version unequal to ours
+            // TODO [$622e6aa13b6bcf0009d7b1af]: We should also accept versions with only the patch version unequal to ours
             if !p.supported_versions.contains(&PROTOCOL_VERSION) {
                 warn!("Protocol version not supported");
                 return Err(HandshakeError::UnsupportedVersion);
