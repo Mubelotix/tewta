@@ -94,12 +94,12 @@ impl Node {
     }
 
     pub async fn on_connection(&self, s: TcpStream) {
-        // TODO [$622e6aa13b6bcf0009d7b1b0]: Add timeout on handshake
+        // TODO [#17]: Add timeout on handshake
 
         let r = match handshake(s, &self.peer_id, &self.rsa_public_key, &self.rsa_private_key).await {
             Ok(r) => r,
             Err(e) => {
-                // TODO [$622e6aa13b6bcf0009d7b1b1]: We should send quit on errors before terminating the connection
+                // TODO [#18]: We should send quit on errors before terminating the connection
                 error!("Handshake failed: {:?}", e);
                 return;
             }
