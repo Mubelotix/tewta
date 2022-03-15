@@ -156,11 +156,11 @@ pub async fn handshake(mut stream: TcpStream, our_peer_id: &PeerID, our_public_k
             our_aes_key_part.extend(&their_aes_key_part);
             our_aes_key_part
         },
-        std::cmp::Ordering::Equal => {
+        std::cmp::Ordering::Greater => {
             their_aes_key_part.extend(&our_aes_key_part);
             their_aes_key_part
         },
-        std::cmp::Ordering::Greater => {
+        std::cmp::Ordering::Equal => {
             return Err(HandshakeError::SamePeer);
         },
     };
