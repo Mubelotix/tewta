@@ -118,6 +118,7 @@ pub async fn handshake(mut stream: TcpStream, our_peer_id: &PeerID, our_public_k
         nonce: their_nonce,
     });
     let p = p.raw_bytes(&PROTOCOL_SETTINGS).unwrap();
+    #[cfg(not(feature = "no-rsa"))]
     let p = their_public_key.encrypt(&mut OsRng, PaddingScheme::new_oaep::<sha2::Sha256>(), &p).expect("Failed to encrypt");
     let plen = p.len() as u32;
     let mut plen_buf = [0u8; 4];
@@ -131,6 +132,7 @@ pub async fn handshake(mut stream: TcpStream, our_peer_id: &PeerID, our_public_k
     let mut p = Vec::with_capacity(plen as usize);
     unsafe {p.set_len(plen as usize)};
     r.read_exact(&mut p).await.unwrap();
+    #[cfg(not(feature = "no-rsa"))]
     let p = our_private_key.decrypt(PaddingScheme::new_oaep::<sha2::Sha256>(), &p).expect("failed to decrypt");
     let p = Packet::from_raw_bytes(&p, &PROTOCOL_SETTINGS).unwrap();
     let mut their_aes_key_part = match p {
