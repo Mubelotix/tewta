@@ -102,6 +102,12 @@ pub async fn handshake(mut stream: TcpStream, our_peer_id: &PeerID, our_public_k
         }
     };
 
+    // Stop connecting to ourselves
+    let their_peer_id = PeerID::from(&their_public_key);
+    if our_peer_id == &their_peer_id {
+        return Err(HandshakeError::SamePeer);
+    }
+
     // Send our AES init packet
     debug!("Sending AES init packet");
     let mut our_aes_key_part = Vec::with_capacity(16);
@@ -145,7 +151,6 @@ pub async fn handshake(mut stream: TcpStream, our_peer_id: &PeerID, our_public_k
     };
 
     // Concatenate our and their AES key parts
-    let their_peer_id = PeerID::from(&their_public_key);
     let aes_key = match our_peer_id.cmp(&their_peer_id) {
         std::cmp::Ordering::Less => {
             our_aes_key_part.extend(&their_aes_key_part);
