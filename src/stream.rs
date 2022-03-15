@@ -189,7 +189,7 @@ pub mod testing {
                         waker.wake();
                         trace!("WriteHalf {}{}: woke read half", self.log_id.0, ['A', 'B'][self.log_id.1 as usize]);
                     } else {
-                        warn!("WriteHalf {}{}: did not wake", self.log_id.0, ['A', 'B'][self.log_id.1 as usize]);
+                        trace!("WriteHalf {}{}: did not wake", self.log_id.0, ['A', 'B'][self.log_id.1 as usize]);
                     }
                     self.woke = true;
                 }
