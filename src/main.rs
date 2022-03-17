@@ -25,6 +25,7 @@ lazy_static::lazy_static!(
 
 pub mod constants {
     pub const PROTOCOL_VERSION: (u32, u32, u32) = (0, 0, 1);
+    pub const MAX_PACKET_SIZE: u32 = 1_000_000;
     #[cfg(feature = "test")]
     pub const RSA_KEY_LENGHT: usize = 1024;
     #[cfg(not(feature = "test"))]

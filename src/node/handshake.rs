@@ -9,6 +9,7 @@ pub enum HandshakeError {
     InvalidAesKeyLenght,
     InvalidNonce,
     InvalidNonceCopy,
+    PacketTooLarge,
     /// We are connecting to ourselves!
     SamePeer,
     StreamReunitionFailure(tokio::net::tcp::ReuniteError),
@@ -24,8 +25,6 @@ pub struct HandshakeData {
 pub async fn handshake(mut stream: TcpStream, our_peer_id: &PeerID, our_public_key: &RsaPublicKey, our_private_key: &RsaPrivateKey) -> Result<HandshakeData, HandshakeError> {
     // TODO [#14]: Handle errors during handshake
     // There are way too many unwraps
-
-    // TODO [#15]: Prevent DOS when receiving packets (packet size)
 
     let (mut r, mut w) = stream.into_split();
 
@@ -45,6 +44,9 @@ pub async fn handshake(mut stream: TcpStream, our_peer_id: &PeerID, our_public_k
     // Receive their protocol version
     debug!("Receiving protocol version");
     let plen = r.read_u32().await.unwrap();
+    if plen >= MAX_PACKET_SIZE {
+        return Err(HandshakeError::PacketTooLarge);
+    }
     let mut p = Vec::with_capacity(plen as usize);
     unsafe {p.set_len(plen as usize)};
     r.read_exact(&mut p).await.unwrap();
@@ -83,6 +85,9 @@ pub async fn handshake(mut stream: TcpStream, our_peer_id: &PeerID, our_public_k
     // Receive their RSA public key
     debug!("Receiving RSA public key");
     let plen = r.read_u32().await.unwrap();
+    if plen >= MAX_PACKET_SIZE {
+        return Err(HandshakeError::PacketTooLarge);
+    }
     let mut p = Vec::with_capacity(plen as usize);
     unsafe {p.set_len(plen as usize)};
     r.read_exact(&mut p).await.unwrap();
@@ -129,6 +134,9 @@ pub async fn handshake(mut stream: TcpStream, our_peer_id: &PeerID, our_public_k
     // Receive their AES init packet
     debug!("Receiving AES init packet");
     let plen = r.read_u32().await.unwrap();
+    if plen >= MAX_PACKET_SIZE {
+        return Err(HandshakeError::PacketTooLarge);
+    }
     let mut p = Vec::with_capacity(plen as usize);
     unsafe {p.set_len(plen as usize)};
     r.read_exact(&mut p).await.unwrap();
