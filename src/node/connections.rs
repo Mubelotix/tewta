@@ -61,6 +61,9 @@ impl ConnectionPool {
         // Listen for messages from the remote node
         tokio::spawn(async move {
             loop {
+                // TODO: Aes encryption
+                // For receiving and sending
+
                 // Read packet
                 let packet_size = read_stream.read_u32().await.unwrap();
                 if packet_size >= MAX_PACKET_SIZE {
