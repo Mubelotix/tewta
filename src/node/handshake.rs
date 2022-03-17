@@ -10,9 +10,29 @@ pub enum HandshakeError {
     InvalidNonce,
     InvalidNonceCopy,
     PacketTooLarge,
-    /// We are connecting to ourselves!
-    SamePeer,
+    SamePeer, // We are connecting to ourselves!
+    ProtocolError(protocol::Error),
+    RsaError(rsa::errors::Error),
+    IoError(std::io::Error),
     StreamReunitionFailure(tokio::net::tcp::ReuniteError),
+}
+
+impl From<std::io::Error> for HandshakeError {
+    fn from(e: std::io::Error) -> Self {
+        HandshakeError::IoError(e)
+    }
+}
+
+impl From<protocol::Error> for HandshakeError {
+    fn from(e: protocol::Error) -> Self {
+        HandshakeError::ProtocolError(e)
+    }
+}
+
+impl From<rsa::errors::Error> for HandshakeError {
+    fn from(e: rsa::errors::Error) -> Self {
+        HandshakeError::RsaError(e)
+    }
 }
 
 pub struct HandshakeData {
@@ -23,9 +43,6 @@ pub struct HandshakeData {
 }
 
 pub async fn handshake(mut stream: TcpStream, our_peer_id: &PeerID, our_public_key: &RsaPublicKey, our_private_key: &RsaPrivateKey) -> Result<HandshakeData, HandshakeError> {
-    // TODO [#14]: Handle errors during handshake
-    // There are way too many unwraps
-
     let (mut r, mut w) = stream.into_split();
 
     // Send our protocol version
@@ -34,23 +51,23 @@ pub async fn handshake(mut stream: TcpStream, our_peer_id: &PeerID, our_public_k
         protocol: "p2pnet".to_string(),
         supported_versions: vec![PROTOCOL_VERSION],
     });
-    let p = p.raw_bytes(&PROTOCOL_SETTINGS).unwrap();
+    let p = p.raw_bytes(&PROTOCOL_SETTINGS)?;
     let plen = p.len() as u32;
     let mut plen_buf = [0u8; 4];
     plen_buf.copy_from_slice(&plen.to_be_bytes());
-    w.write_all(&plen_buf).await.unwrap();
-    w.write_all(&p).await.unwrap();
+    w.write_all(&plen_buf).await?;
+    w.write_all(&p).await?;
 
     // Receive their protocol version
     debug!("Receiving protocol version");
-    let plen = r.read_u32().await.unwrap();
+    let plen = r.read_u32().await?;
     if plen >= MAX_PACKET_SIZE {
         return Err(HandshakeError::PacketTooLarge);
     }
     let mut p = Vec::with_capacity(plen as usize);
     unsafe {p.set_len(plen as usize)};
-    r.read_exact(&mut p).await.unwrap();
-    let p = Packet::from_raw_bytes(&p, &PROTOCOL_SETTINGS).unwrap();
+    r.read_exact(&mut p).await?;
+    let p = Packet::from_raw_bytes(&p, &PROTOCOL_SETTINGS)?;
     match p {
         Packet::ProtocolVersion(p) => {
             // TODO [#16]: We should also accept versions with only the patch version unequal to ours
@@ -75,23 +92,23 @@ pub async fn handshake(mut stream: TcpStream, our_peer_id: &PeerID, our_public_k
         rsa_public_key_modulus: our_public_key.n().to_bytes_le(),
         nonce: our_nonce.clone(),
     });
-    let p = p.raw_bytes(&PROTOCOL_SETTINGS).unwrap();
+    let p = p.raw_bytes(&PROTOCOL_SETTINGS)?;
     let plen = p.len() as u32;
     let mut plen_buf = [0u8; 4];
     plen_buf.copy_from_slice(&plen.to_be_bytes());
-    w.write_all(&plen_buf).await.unwrap();
-    w.write_all(&p).await.unwrap();
+    w.write_all(&plen_buf).await?;
+    w.write_all(&p).await?;
 
     // Receive their RSA public key
     debug!("Receiving RSA public key");
-    let plen = r.read_u32().await.unwrap();
+    let plen = r.read_u32().await?;
     if plen >= MAX_PACKET_SIZE {
         return Err(HandshakeError::PacketTooLarge);
     }
     let mut p = Vec::with_capacity(plen as usize);
     unsafe {p.set_len(plen as usize)};
-    r.read_exact(&mut p).await.unwrap();
-    let p = Packet::from_raw_bytes(&p, &PROTOCOL_SETTINGS).unwrap();
+    r.read_exact(&mut p).await?;
+    let p = Packet::from_raw_bytes(&p, &PROTOCOL_SETTINGS)?;
     let (their_public_key, their_nonce) = match p {
         Packet::InitRsa(p) => {
             let n = rsa::BigUint::from_bytes_le(&p.rsa_public_key_modulus);
@@ -99,7 +116,7 @@ pub async fn handshake(mut stream: TcpStream, our_peer_id: &PeerID, our_public_k
             if p.nonce.len() != 16 {
                 return Err(HandshakeError::InvalidNonce);
             }
-            (RsaPublicKey::new(n, e).unwrap(), p.nonce)
+            (RsaPublicKey::new(n, e)?, p.nonce)
         }
         _ => {
             error!("Expected an init rsa packet");
@@ -122,27 +139,27 @@ pub async fn handshake(mut stream: TcpStream, our_peer_id: &PeerID, our_public_k
         aes_key_part: our_aes_key_part.clone(),
         nonce: their_nonce,
     });
-    let p = p.raw_bytes(&PROTOCOL_SETTINGS).unwrap();
+    let p = p.raw_bytes(&PROTOCOL_SETTINGS)?;
     #[cfg(not(feature = "no-rsa"))]
-    let p = their_public_key.encrypt(&mut OsRng, PaddingScheme::new_oaep::<sha2::Sha256>(), &p).expect("Failed to encrypt");
+    let p = their_public_key.encrypt(&mut OsRng, PaddingScheme::new_oaep::<sha2::Sha256>(), &p)?;
     let plen = p.len() as u32;
     let mut plen_buf = [0u8; 4];
     plen_buf.copy_from_slice(&plen.to_be_bytes());
-    w.write_all(&plen_buf).await.unwrap();
-    w.write_all(&p).await.unwrap();
+    w.write_all(&plen_buf).await?;
+    w.write_all(&p).await?;
 
     // Receive their AES init packet
     debug!("Receiving AES init packet");
-    let plen = r.read_u32().await.unwrap();
+    let plen = r.read_u32().await?;
     if plen >= MAX_PACKET_SIZE {
         return Err(HandshakeError::PacketTooLarge);
     }
     let mut p = Vec::with_capacity(plen as usize);
     unsafe {p.set_len(plen as usize)};
-    r.read_exact(&mut p).await.unwrap();
+    r.read_exact(&mut p).await?;
     #[cfg(not(feature = "no-rsa"))]
-    let p = our_private_key.decrypt(PaddingScheme::new_oaep::<sha2::Sha256>(), &p).expect("failed to decrypt");
-    let p = Packet::from_raw_bytes(&p, &PROTOCOL_SETTINGS).unwrap();
+    let p = our_private_key.decrypt(PaddingScheme::new_oaep::<sha2::Sha256>(), &p)?;
+    let p = Packet::from_raw_bytes(&p, &PROTOCOL_SETTINGS)?;
     let mut their_aes_key_part = match p {
         Packet::InitAes(p) => {
             if p.aes_key_part.len() != 16 {
