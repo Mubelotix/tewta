@@ -68,10 +68,10 @@ impl ConnectionPool {
 
     pub(super) async fn disconnect(&self, n: &PeerID) {
         let mut connections = self.connections.lock().await;
-        // TODO [$62336d0d940db60009d03e32]: Warn on debug if node is already disconnected
+        // TODO [#20]: Warn on debug if node is already disconnected
         connections.remove(n);
 
-        // TODO [$62336d0d940db60009d03e33]: Send quit packet when disconnecting
+        // TODO [#21]: Send quit packet when disconnecting
         // We will have to add a parameter in this function
     }
 
@@ -89,7 +89,7 @@ impl ConnectionPool {
         // Listen for messages from the remote node
         tokio::spawn(async move {
             loop {
-                // TODO [$62336d0d940db60009d03e34]: Aes encryption
+                // TODO [#22]: Aes encryption
                 // For receiving and sending
 
                 // Read packet
