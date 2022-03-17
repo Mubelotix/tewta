@@ -52,7 +52,6 @@ impl ConnectionPool {
         trace!("packet written to {}: {:?}", n, p);
     }
 
-    // TODO [#2]: n should be removed
     pub(super) async fn insert(&self, n: PeerID, mut s: TcpStream) {
         let mut connections = self.connections.lock().await;
         let (mut read_stream, write_stream) = s.into_split();
@@ -64,8 +63,7 @@ impl ConnectionPool {
             loop {
                 // Read packet
                 let packet_size = read_stream.read_u32().await.unwrap();
-                // TODO [#3]: Add setting for max packet size
-                if packet_size >= 1_000_000 {
+                if packet_size >= MAX_PACKET_SIZE {
                     warn!("packet size too large");
                     unimplemented!("Recovery of packet size too large");
                 }
