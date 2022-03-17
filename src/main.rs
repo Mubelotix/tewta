@@ -94,7 +94,7 @@ async fn thousand_nodes() {
     env_logger::init();
 
     let mut command_senders = Vec::new();
-    for _ in 0..if cfg!(feature="onlyfive") {5} else {1000} {
+    for _ in 0..if cfg!(feature="onlyfive") {5} else {50} {
         let (command_receiver, command_sender) = CommandReceiver::new();
         command_senders.push(command_sender);
         let (connection_sender, connection_receiver) = async_channel::unbounded();

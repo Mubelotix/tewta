@@ -47,7 +47,7 @@ impl Node {
         for _ in 0..50 {
             use rand::Rng;
     
-            let n = rand::thread_rng().gen_range(0..if cfg!(feature = "onlyfive") { 5 } else { 1000 });
+            let n = rand::thread_rng().gen_range(0..if cfg!(feature = "onlyfive") { 5 } else { 50 });
             let addr = format!("local-{}", n);
             if let Some(s) = connect(addr).await {
                 self.on_connection(s).await;
