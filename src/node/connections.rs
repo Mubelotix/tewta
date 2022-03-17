@@ -9,9 +9,15 @@ pub type ReadHalf = crate::stream::testing::TestReadHalf;
 #[cfg(feature = "test")]
 pub type WriteHalf = crate::stream::testing::TestWriteHalf;
 
+struct Peer {
+    /// Reportedly connected peers
+    connected_peers: BTreeMap<PeerID, String>,
+    write_stream: WriteHalf,
+    ping_nanos: Option<usize>,
+}
+
 pub(super) struct ConnectionPool {
-    // TODO [#9]: Is the standard HashMap hashing algorithm secure enough?
-    connections: Mutex<HashMap<PeerID, WriteHalf>>,
+    connections: Mutex<BTreeMap<PeerID, Peer>>,
     node_ref: UnsafeCell<Weak<Node>>,
 }
 
@@ -35,7 +41,7 @@ impl ConnectionPool {
 
         let mut connections = self.connections.lock().await;
 
-        let tcp_stream = match connections.get_mut(n) {
+        let peer = match connections.get_mut(n) {
             Some(s) => s,
             None => {
                 warn!("no connection to {}", n);
@@ -47,15 +53,37 @@ impl ConnectionPool {
         let len = p.len() as u32;
         let mut buf = [0u8; 4];
         buf.copy_from_slice(&len.to_be_bytes());
-        tcp_stream.write_all(&buf).await.unwrap();
-        tcp_stream.write_all(&p).await.unwrap();
+        peer.write_stream.write_all(&buf).await.unwrap();
+        peer.write_stream.write_all(&p).await.unwrap();
         trace!("packet written to {}: {:?}", n, p);
+    }
+
+    pub(super) async fn set_ping(&self, n: &PeerID, ping_nanos: usize) {
+        let mut connections = self.connections.lock().await;
+        match connections.get_mut(n) {
+            Some(p) => p.ping_nanos = Some(ping_nanos),
+            None => warn!("unable to set ping: no connection to {}", n),
+        };
+    }
+
+    pub(super) async fn disconnect(&self, n: &PeerID) {
+        let mut connections = self.connections.lock().await;
+        // TODO: Warn on debug if node is already disconnected
+        connections.remove(n);
+
+        // TODO: Send quit packet when disconnecting
+        // We will have to add a parameter in this function
     }
 
     pub(super) async fn insert(&self, n: PeerID, mut s: TcpStream) {
         let mut connections = self.connections.lock().await;
         let (mut read_stream, write_stream) = s.into_split();
-        connections.insert(n.clone(), write_stream);
+        let peer = Peer {
+            connected_peers: BTreeMap::new(),
+            write_stream,
+            ping_nanos: None,
+        };
+        connections.insert(n.clone(), peer);
         let node = Weak::clone(unsafe {&*self.node_ref.get()});
 
         // Listen for messages from the remote node
@@ -105,7 +133,7 @@ impl ConnectionPool {
 impl Default for ConnectionPool {
     fn default() -> ConnectionPool {
         ConnectionPool {
-            connections: Mutex::new(HashMap::new()),
+            connections: Mutex::new(BTreeMap::new()),
             node_ref: UnsafeCell::new(Weak::new()),
         }
     }

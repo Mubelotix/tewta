@@ -36,8 +36,54 @@ impl Node {
         node.connections.set_node_ref(Arc::downgrade(&node));
 
         let node2 = Arc::clone(&node);
-        tokio::spawn(async move {
+        spawn(async move {
             node2.bootstrap_peers().await;
+        });
+
+        // Continuously ping peers
+        let node2 = Arc::downgrade(&node);
+        spawn(async move {
+            let node = node2;
+            loop {
+                sleep(Duration::from_secs(100)).await;
+
+                let node = match node.upgrade() {
+                    Some(node) => node,
+                    None => break,
+                };
+
+                let peer_ids = node.connections.connected_nodes().await;
+                for peer_id in peer_ids {
+                    let node = Arc::clone(&node);
+                    spawn(async move {
+                        // Send ping
+                        let peer_id = &peer_id;
+                        let ping_id = node.ping_id_counter.next();
+                        let start = Instant::now();
+                        node.connections.send_packet(peer_id, Packet::Ping(PingPacket { ping_id })).await;
+
+                        // Receive pong
+                        let pong_receiver = node.on_pong_packet.listen().await;
+                        let result = timeout(Duration::from_secs(30), async move {
+                            loop {
+                                let (n, pong) = pong_receiver.recv().await.unwrap();
+                                if pong.ping_id == ping_id && &n == peer_id {
+                                    break Instant::now().duration_since(start);
+                                }
+                            }
+                        }).await;
+
+                        // Handle result
+                        match result {
+                            Ok(d) => node.connections.set_ping(peer_id, d.as_nanos() as usize).await,
+                            Err(_) => {
+                                warn!("Connection timed out, disconnecting");
+                                node.connections.disconnect(peer_id).await;
+                            },
+                        }
+                    });
+                }
+            }
         });
 
         node

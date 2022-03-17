@@ -29,13 +29,13 @@ impl From<&rsa::RsaPublicKey> for PeerID {
 use std::cmp::{Ord, PartialOrd, Ordering};
 impl PartialOrd<PeerID> for PeerID {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        for our_byte in self.bytes.iter() {
-            for their_byte in other.bytes.iter() {
-                if our_byte < their_byte {
-                    return Some(Ordering::Less);
-                } else if our_byte > their_byte {
-                    return Some(Ordering::Greater);
-                }
+        for i in 0..64 {
+            let our_byte = unsafe { self.bytes.get_unchecked(i) };
+            let their_byte = unsafe { other.bytes.get_unchecked(i) };
+            if our_byte < their_byte {
+                return Some(Ordering::Less);
+            } else if our_byte > their_byte {
+                return Some(Ordering::Greater);
             }
         }
         Some(Ordering::Equal)
@@ -44,13 +44,13 @@ impl PartialOrd<PeerID> for PeerID {
 
 impl Ord for PeerID {
     fn cmp(&self, other: &Self) -> Ordering {
-        for our_byte in self.bytes.iter() {
-            for their_byte in other.bytes.iter() {
-                if our_byte < their_byte {
-                    return Ordering::Less;
-                } else if our_byte > their_byte {
-                    return Ordering::Greater;
-                }
+        for i in 0..64 {
+            let our_byte = unsafe { self.bytes.get_unchecked(i) };
+            let their_byte = unsafe { other.bytes.get_unchecked(i) };
+            if our_byte < their_byte {
+                return Ordering::Less;
+            } else if our_byte > their_byte {
+                return Ordering::Greater;
             }
         }
         Ordering::Equal
@@ -76,6 +76,18 @@ impl std::str::FromStr for PeerID {
             *byte = u8::from_str_radix(s, 16)?;
         }
         Ok(PeerID { bytes: bytes.into() })
+    }
+}
+
+impl protocol::Parcel for PeerID {
+    const TYPE_NAME: &'static str = "PeerID";
+
+    fn read_field(read: &mut dyn std::io::Read, settings: &protocol::Settings, hints: &mut protocol::hint::Hints) -> Result<Self, protocol::Error> {
+        Ok(Self {bytes: Box::new(<[u8; 64]>::read_field(read, settings, hints)?)})
+    }
+
+    fn write_field(&self, write: &mut dyn std::io::Write, settings: &protocol::Settings, hints: &mut protocol::hint::Hints) -> Result<(), protocol::Error> {
+        self.bytes.write_field(write, settings, hints)
     }
 }
 
