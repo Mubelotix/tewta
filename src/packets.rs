@@ -11,8 +11,6 @@ pub enum Packet {
     Ehlo(EhloPacket),
     Ping(PingPacket),
     Pong(PingPacket),
-    RequestPeerMap,
-    PeerMap(PeerMapPacket),
     Quit(QuitPacket),
 }
 
@@ -69,16 +67,6 @@ pub struct EhloPacket {
 #[derive(Protocol, Debug, Clone, Copy)]
 pub struct PingPacket {
     pub ping_id: u32,
-}
-
-/// Sent by a node on request.
-/// Contains the list of its connected peers.
-/// The node might also recommend arbitrarly a few peers to try to connect to, without guaranteeing their availability.
-#[derive(Protocol, Debug, Clone)]
-pub struct PeerMapPacket {
-    // Todo: Replace peer address with more appropriate type
-    pub peers: BTreeMap<PeerID, String>,
-    pub recommended_peers: BTreeMap<PeerID, String>,
 }
 
 /// Sent by a disconnecting node.
