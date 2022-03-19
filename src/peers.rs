@@ -2,12 +2,12 @@ use std::mem::MaybeUninit;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct PeerID {
-    bytes: Box<[u8; 64]>,
+    bytes: Box<[u8; 32]>,
 }
 
 impl PeerID {
     #[allow(clippy::if_same_then_else)]
-    pub fn distance(&self, other: &PeerID) -> Box<[u8; 64]> {
+    pub fn distance(&self, other: &PeerID) -> Box<[u8; 32]> {
         let (df, dforward) = self.distance_forward(other);
         let (db, dbackward) = self.distance_backward(other);
         if df {
@@ -22,11 +22,11 @@ impl PeerID {
     }
 
     // Use with caution, will not handle deduction on the first byte
-    fn distance_forward(&self, other: &PeerID) -> (bool, Box<[u8; 64]>) {
+    fn distance_forward(&self, other: &PeerID) -> (bool, Box<[u8; 32]>) {
         unsafe {
-            let mut distance: Box<[u8; 64]> = Box::new(MaybeUninit::uninit().assume_init());
+            let mut distance: Box<[u8; 32]> = Box::new(MaybeUninit::uninit().assume_init());
             let mut deduction = false;
-            for i in 0..64 {
+            for i in 0..32 {
                 let (v, o) = other.bytes.get_unchecked(i).overflowing_sub(*self.bytes.get_unchecked(i));
                 *distance.get_unchecked_mut(i) = v;
                 if o {
@@ -49,7 +49,7 @@ impl PeerID {
         }
     }
 
-    fn distance_backward(&self, other: &PeerID) -> (bool, Box<[u8; 64]>) {
+    fn distance_backward(&self, other: &PeerID) -> (bool, Box<[u8; 32]>) {
         other.distance_forward(self)
     }
 }
@@ -58,18 +58,18 @@ impl From<&rsa::RsaPublicKey> for PeerID {
     /// `peer_id = sha512(exponent + modulus)` where exponent and modulus bytes are reprensented as little endian
     fn from(key: &rsa::RsaPublicKey) -> Self {
         use rsa::PublicKeyParts;
-        use sha2::{Digest, Sha512};
+        use sha2::{Digest, Sha256};
 
         let mut e = key.e().to_bytes_le();
         let n = key.n().to_bytes_le();
         e.extend(n);
         
-        let mut hasher = Sha512::new();
+        let mut hasher = Sha256::new();
         hasher.update(&e);
         let result = hasher.finalize();
 
         // uninitialized bytes
-        let mut bytes: Box<[u8; 64]> = Box::new(unsafe { MaybeUninit::uninit().assume_init() });
+        let mut bytes: Box<[u8; 32]> = Box::new(unsafe { MaybeUninit::uninit().assume_init() });
         bytes.copy_from_slice(&result);
 
         PeerID { bytes }
@@ -102,7 +102,7 @@ impl std::str::FromStr for PeerID {
     type Err = std::num::ParseIntError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let mut bytes = [0u8; 64];
+        let mut bytes = [0u8; 32];
         for (i, byte) in bytes.iter_mut().enumerate() {
             let s = s.get(i*2..i*2+2).unwrap_or("");
             *byte = u8::from_str_radix(s, 16)?;
@@ -115,7 +115,7 @@ impl protocol::Parcel for PeerID {
     const TYPE_NAME: &'static str = "PeerID";
 
     fn read_field(read: &mut dyn std::io::Read, settings: &protocol::Settings, hints: &mut protocol::hint::Hints) -> Result<Self, protocol::Error> {
-        Ok(Self {bytes: Box::new(<[u8; 64]>::read_field(read, settings, hints)?)})
+        Ok(Self {bytes: Box::new(<[u8; 32]>::read_field(read, settings, hints)?)})
     }
 
     fn write_field(&self, write: &mut dyn std::io::Write, settings: &protocol::Settings, hints: &mut protocol::hint::Hints) -> Result<(), protocol::Error> {
@@ -136,39 +136,39 @@ mod tests {
 
     #[test]
     fn test_distance() {
-        let raw_peer_id1 = "0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000FF00";
+        let raw_peer_id1 = "000000000000000000000000000000000000000000000000000000000000FF00";
         let peer_id1: PeerID = raw_peer_id1.parse().unwrap();
-        let raw_peer_id2 = "0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000FF01";
+        let raw_peer_id2 = "000000000000000000000000000000000000000000000000000000000000FF01";
         let peer_id2: PeerID = raw_peer_id2.parse().unwrap();
         let distance = peer_id1.distance_forward(&peer_id2);
-        assert_eq!(distance.1, Box::new([0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1]));
+        assert_eq!(distance.1, Box::new([0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1]));
         
-        let raw_peer_id1 = "0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000FF00";
+        let raw_peer_id1 = "000000000000000000000000000000000000000000000000000000000000FF00";
         let peer_id1: PeerID = raw_peer_id1.parse().unwrap();
-        let raw_peer_id2 = "FF00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000FF01";
+        let raw_peer_id2 = "FF0000000000000000000000000000000000000000000000000000000000FF01";
         let peer_id2: PeerID = raw_peer_id2.parse().unwrap();
         let distance = peer_id1.distance_forward(&peer_id2);
-        assert_eq!(distance.1, Box::new([255,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1]));
+        assert_eq!(distance.1, Box::new([255,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1]));
 
-        let raw_peer_id1 = "00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001";
+        let raw_peer_id1 = "FF00000000000000000000000000000000000000000000000000000000000001";
         let peer_id1: PeerID = raw_peer_id1.parse().unwrap();
-        let raw_peer_id2 = "00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000100";
+        let raw_peer_id2 = "FF00000000000000000000000000000000000000000000000000000000000100";
         let peer_id2: PeerID = raw_peer_id2.parse().unwrap();
         let distance = peer_id1.distance_forward(&peer_id2);
-        assert_eq!(distance.1, Box::new([0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,255]));
+        assert_eq!(distance.1, Box::new([0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,255]));
 
-        let raw_peer_id1 = "00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001";
+        let raw_peer_id1 = "FF00000000000000000000000000000000000000000000000000000000000001";
         let peer_id1: PeerID = raw_peer_id1.parse().unwrap();
-        let raw_peer_id2 = "00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000100";
+        let raw_peer_id2 = "FF00000000000000000000000000000000000000000000000000000000000100";
         let peer_id2: PeerID = raw_peer_id2.parse().unwrap();
         let distance = peer_id1.distance(&peer_id2);
-        assert_eq!(distance, Box::new([0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,255]));
+        assert_eq!(distance, Box::new([0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,255]));
 
-        let raw_peer_id1 = "000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000FF";
+        let raw_peer_id1 = "00000000000000000000000000000000000000000000000000000000000000FF";
         let peer_id1: PeerID = raw_peer_id1.parse().unwrap();
-        let raw_peer_id2 = "00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000";
+        let raw_peer_id2 = "0000000000000000000000000000000000000000000000000000000000000000";
         let peer_id2: PeerID = raw_peer_id2.parse().unwrap();
         let distance = peer_id1.distance(&peer_id2);
-        assert_eq!(distance, Box::new([0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,255]));
+        assert_eq!(distance, Box::new([0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,255]));
     }
 }
