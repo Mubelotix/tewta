@@ -164,7 +164,7 @@ impl Node {
 
         info!(self.log_level, "successful handshake");
 
-        // TODO: Set addr from handshake
+        // TODO [#24]: Set addr from handshake
         self.connections.insert(r.their_peer_id, r.stream, r.their_addr).await;
     }
 
@@ -198,7 +198,7 @@ impl Node {
                     return;
                 }
 
-                // TODO: Sort the peers by distance when received
+                // TODO [#25]: Sort the peers by distance when received
                 // So that we don't duplicate the work by sending the packet to multiple event handlers
 
                 self.on_return_peers_packet.event((n, p)).await;
