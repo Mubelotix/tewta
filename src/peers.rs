@@ -6,51 +6,12 @@ pub struct PeerID {
 }
 
 impl PeerID {
-    #[allow(clippy::if_same_then_else)]
     pub fn distance(&self, other: &PeerID) -> Box<[u8; 32]> {
-        let (df, dforward) = self.distance_forward(other);
-        let (db, dbackward) = self.distance_backward(other);
-        if df {
-            dbackward
-        } else if db {
-            dforward
-        } else if dforward < dbackward {
-            dforward
-        } else {
-            dbackward
+        let mut distance: Box<[u8; 32]> = Box::new(unsafe {MaybeUninit::uninit().assume_init()});
+        for i in 0..32 {
+            distance[i] = self.bytes[i] ^ other.bytes[i];
         }
-    }
-
-    // Use with caution, will not handle deduction on the first byte
-    fn distance_forward(&self, other: &PeerID) -> (bool, Box<[u8; 32]>) {
-        unsafe {
-            let mut distance: Box<[u8; 32]> = Box::new(MaybeUninit::uninit().assume_init());
-            let mut deduction = false;
-            for i in 0..32 {
-                let (v, o) = other.bytes.get_unchecked(i).overflowing_sub(*self.bytes.get_unchecked(i));
-                *distance.get_unchecked_mut(i) = v;
-                if o {
-                    let mut j = i;
-                    loop {
-                        if j == 0 {
-                            debug_assert!(!deduction);
-                            deduction = true;
-                            break;
-                        }
-                        j -= 1;
-                        if *distance.get_unchecked(j) > 0 {
-                            *distance.get_unchecked_mut(j) -= 1;
-                            break;
-                        }
-                    }
-                }
-            }
-            (deduction, distance)
-        }
-    }
-
-    fn distance_backward(&self, other: &PeerID) -> (bool, Box<[u8; 32]>) {
-        other.distance_forward(self)
+        distance
     }
 }
 
@@ -129,40 +90,19 @@ mod tests {
 
     #[test]
     fn test_formatting() {
-        let raw_peer_id = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+        let raw_peer_id = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
         let peer_id: PeerID = raw_peer_id.parse().unwrap();
         assert_eq!(peer_id.to_string(), raw_peer_id);
     }
 
     #[test]
     fn test_distance() {
-        let raw_peer_id1 = "000000000000000000000000000000000000000000000000000000000000FF00";
-        let peer_id1: PeerID = raw_peer_id1.parse().unwrap();
-        let raw_peer_id2 = "000000000000000000000000000000000000000000000000000000000000FF01";
-        let peer_id2: PeerID = raw_peer_id2.parse().unwrap();
-        let distance = peer_id1.distance_forward(&peer_id2);
-        assert_eq!(distance.1, Box::new([0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1]));
-        
-        let raw_peer_id1 = "000000000000000000000000000000000000000000000000000000000000FF00";
-        let peer_id1: PeerID = raw_peer_id1.parse().unwrap();
-        let raw_peer_id2 = "FF0000000000000000000000000000000000000000000000000000000000FF01";
-        let peer_id2: PeerID = raw_peer_id2.parse().unwrap();
-        let distance = peer_id1.distance_forward(&peer_id2);
-        assert_eq!(distance.1, Box::new([255,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1]));
-
-        let raw_peer_id1 = "FF00000000000000000000000000000000000000000000000000000000000001";
-        let peer_id1: PeerID = raw_peer_id1.parse().unwrap();
-        let raw_peer_id2 = "FF00000000000000000000000000000000000000000000000000000000000100";
-        let peer_id2: PeerID = raw_peer_id2.parse().unwrap();
-        let distance = peer_id1.distance_forward(&peer_id2);
-        assert_eq!(distance.1, Box::new([0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,255]));
-
         let raw_peer_id1 = "FF00000000000000000000000000000000000000000000000000000000000001";
         let peer_id1: PeerID = raw_peer_id1.parse().unwrap();
         let raw_peer_id2 = "FF00000000000000000000000000000000000000000000000000000000000100";
         let peer_id2: PeerID = raw_peer_id2.parse().unwrap();
         let distance = peer_id1.distance(&peer_id2);
-        assert_eq!(distance, Box::new([0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,255]));
+        assert_eq!(distance, Box::new([0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1]));
 
         let raw_peer_id1 = "00000000000000000000000000000000000000000000000000000000000000FF";
         let peer_id1: PeerID = raw_peer_id1.parse().unwrap();
