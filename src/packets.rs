@@ -61,9 +61,10 @@ pub struct InitAesPacket {
 
 /// Initialize data between nodes.
 /// Sent by both peers right after the encryption handshake.
-#[derive(Protocol, Debug, Clone, Copy)]
+#[derive(Protocol, Debug, Clone)]
 pub struct EhloPacket {
-
+    /// The address you want peers to connect to
+    pub addr: String,
 }
 
 #[derive(Protocol, Debug, Clone)]

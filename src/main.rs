@@ -16,6 +16,8 @@ pub mod packets;
 use packets::*;
 pub mod peers;
 use peers::*;
+#[macro_use]
+pub mod logging;
 
 static mut RUNNING_COMMAND_COUNTER: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
 
@@ -62,8 +64,8 @@ async fn connect(_addr: String) -> Option<TcpStream> {
     unimplemented!()
 }
 
-pub async fn run(connection_receiver: Receiver<TcpStream>, command_receiver: CommandReceiver) {
-    let node = Node::new().await;
+pub async fn run(addr: String, connection_receiver: Receiver<TcpStream>, command_receiver: CommandReceiver) {
+    let node = Node::new(addr).await;
 
     let node2 = Arc::clone(&node);
     #[cfg(feature = "test")]
@@ -96,15 +98,15 @@ async fn thousand_nodes() {
     env_logger::init();
 
     let mut command_senders = Vec::new();
-    for _ in 0..if cfg!(feature="onlyfive") {5} else {50} {
+    for i in 0..if cfg!(feature="onlyfive") {5} else {50} {
         let (command_receiver, command_sender) = CommandReceiver::new();
         command_senders.push(command_sender);
         let (connection_sender, connection_receiver) = async_channel::unbounded();
         LISTENERS.lock().await.push(connection_sender);
-        tokio::spawn(run(connection_receiver, command_receiver));
+        tokio::spawn(run(format!("local-{}", i), connection_receiver, command_receiver));
     }
 
-    info!("All nodes running");
+    log::info!("All nodes running");
 
     print!("\x1b[32m>>> \x1b[0m");
     loop {

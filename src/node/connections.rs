@@ -10,8 +10,6 @@ pub type ReadHalf = crate::stream::testing::TestReadHalf;
 pub type WriteHalf = crate::stream::testing::TestWriteHalf;
 
 struct Peer {
-    /// Reportedly connected peers
-    connected_peers: BTreeMap<PeerID, String>,
     /// How we connected to that peer. Useful for peer routing.
     addr: String,
     write_stream: WriteHalf,
@@ -33,10 +31,13 @@ impl ConnectionPool {
     }
 
     pub(super) async fn send_packet(&self, n: &PeerID, p: Packet) {
+        // TODO: Remove these ugly weak upgraded refs
+        let node = Weak::clone(unsafe {&*self.node_ref.get()}).upgrade().unwrap();
+
         let p = match p.raw_bytes(&PROTOCOL_SETTINGS) {
             Ok(p) => p,
             Err(e) => {
-                error!("{:?}", e);
+                error!(node.log_level, "{:?}", e);
                 return;
             }
         };
@@ -46,7 +47,7 @@ impl ConnectionPool {
         let peer = match connections.get_mut(n) {
             Some(s) => s,
             None => {
-                warn!("no connection to {}", n);
+                warn!(node.log_level, "no connection to {}", n);
                 return;
             },
         };
@@ -57,14 +58,15 @@ impl ConnectionPool {
         buf.copy_from_slice(&len.to_be_bytes());
         peer.write_stream.write_all(&buf).await.unwrap();
         peer.write_stream.write_all(&p).await.unwrap();
-        trace!("packet written to {}: {:?}", n, p);
+        trace!(node.log_level, "packet written to {}: {:?}", n, p);
     }
 
     pub(super) async fn set_ping(&self, n: &PeerID, ping_nanos: usize) {
+        let node = Weak::clone(unsafe {&*self.node_ref.get()}).upgrade().unwrap();
         let mut connections = self.connections.lock().await;
         match connections.get_mut(n) {
             Some(p) => p.ping_nanos = Some(ping_nanos),
-            None => warn!("unable to set ping: no connection to {}", n),
+            None => warn!(node.log_level, "unable to set ping: no connection to {}", n),
         };
     }
 
@@ -81,7 +83,6 @@ impl ConnectionPool {
         let mut connections = self.connections.lock().await;
         let (mut read_stream, write_stream) = s.into_split();
         let peer = Peer {
-            connected_peers: BTreeMap::new(),
             addr,
             write_stream,
             ping_nanos: None,
@@ -98,7 +99,7 @@ impl ConnectionPool {
                 // Read packet
                 let packet_size = read_stream.read_u32().await.unwrap();
                 if packet_size >= MAX_PACKET_SIZE {
-                    warn!("packet size too large");
+                    warn!(node.upgrade().unwrap().log_level, "packet size too large");
                     unimplemented!("Recovery of packet size too large");
                 }
                 let mut packet = Vec::with_capacity(packet_size as usize);
@@ -109,7 +110,7 @@ impl ConnectionPool {
                 let packet: Packet = match Parcel::from_raw_bytes(&packet, &PROTOCOL_SETTINGS) {
                     Ok(p) => p,
                     Err(e) => {
-                        warn!("Failed to parse packet {:?}", e);
+                        warn!(node.upgrade().unwrap().log_level, "Failed to parse packet {:?}", e);
                         continue;
                     },
                 };

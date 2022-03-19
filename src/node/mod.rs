@@ -16,6 +16,7 @@ pub(self) use {
         packets::*,
         peers::PeerID,
         constants::*,
+        error, warn, info, debug, trace, logging::LogLevel,
         connect,
     },
     std::{
@@ -36,5 +37,4 @@ pub(self) use {
     async_mutex::Mutex,
     async_channel::{Sender, Receiver},
     protocol::Parcel,
-    log::*,
 };

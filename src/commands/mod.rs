@@ -14,7 +14,11 @@ use structopt::*;
 /// For instance, `2-5,7 ping` will send the command `ping` to nodes 2, 3, 4, 5 and 7.
 #[derive(StructOpt, Debug, Clone)]
 pub enum Command {
-    ConnCount,
+    Conns,
+    SetLogLevel {
+        #[structopt(short, long)]
+        level: u8,
+    },
     Ping {
         node_id: crate::peers::PeerID,
     },

@@ -2,10 +2,12 @@ use super::*;
 
 pub struct Node {
     connections: ConnectionPool,
-
     rsa_private_key: RsaPrivateKey,
     rsa_public_key: RsaPublicKey,
     peer_id: PeerID,
+    addr: String,
+
+    pub log_level: LogLevel,
 
     ping_id_counter: Counter,
     peer_req_id_counter: Counter,
@@ -17,18 +19,20 @@ pub struct Node {
 }
 
 impl Node {
-    pub async fn new() -> Arc<Node> {
-        debug!("Generating RSA key pair...");
+    pub async fn new(addr: String) -> Arc<Node> {
+        //debug!("Generating RSA key pair...");
         let private_key = RsaPrivateKey::new(&mut OsRng, RSA_KEY_LENGHT).expect("failed to generate a key");
         let public_key = RsaPublicKey::from(&private_key);
-        debug!("RSA keys generated!");
+        //debug!("RSA keys generated!");
 
         let node = Arc::new(Node {
             connections: ConnectionPool::default(),
-
             peer_id: PeerID::from(&public_key),
+            addr,
             rsa_private_key: private_key,
             rsa_public_key: public_key,
+
+            log_level: LogLevel::from(0),
 
             ping_id_counter: Counter::default(),
             peer_req_id_counter: Counter::default(),
@@ -83,7 +87,7 @@ impl Node {
                         match result {
                             Ok(d) => node.connections.set_ping(peer_id, d.as_nanos() as usize).await,
                             Err(_) => {
-                                warn!("Connection timed out, disconnecting");
+                                warn!(node.log_level, "Connection timed out, disconnecting");
                                 node.connections.disconnect(peer_id).await;
                             },
                         }
@@ -96,9 +100,7 @@ impl Node {
     }
 
     async fn bootstrap_peers(&self) {
-        for _ in 0..50 {
-            use rand::Rng;
-    
+        for _ in 0..50 {    
             let n = rand::thread_rng().gen_range(0..if cfg!(feature = "onlyfive") { 5 } else { 50 });
             let addr = format!("local-{}", n);
             if let Some(s) = connect(addr).await {
@@ -115,8 +117,8 @@ impl Node {
 
     pub async fn on_command(&self, c: Command) {
         match c {
-            Command::ConnCount => {
-                info!("{} connections ({:?})", self.connections.len().await, self.connections.connected_nodes().await);
+            Command::Conns => {
+                log::info!("{} connections ({:?})", self.connections.len().await, self.connections.connected_nodes().await);
             }
             Command::Ping { node_id } => {
                 // Send ping
@@ -137,30 +139,33 @@ impl Node {
 
                 // Display result
                 match result {
-                    Ok(d) => info!("Ping is {} ms", d.as_millis()),
-                    Err(_) => info!("Timed out"),
+                    Ok(d) => log::info!("Ping is {} ms", d.as_millis()),
+                    Err(_) => log::info!("Timed out"),
                 }
             }
-            c => info!("{:?}", c),
+            Command::SetLogLevel { level } => {
+                self.log_level.set(level);
+            }
+            c => log::info!("{:?}", c),
         }
     }
 
     pub async fn on_connection(&self, s: TcpStream) {
         // TODO [#17]: Add timeout on handshake
 
-        let r = match handshake(s, &self.peer_id, &self.rsa_public_key, &self.rsa_private_key).await {
+        let r = match handshake(s, &self.addr, &self.peer_id, &self.rsa_public_key, &self.rsa_private_key, self.log_level.clone()).await {
             Ok(r) => r,
             Err(e) => {
                 // TODO [#18]: We should send quit on errors before terminating the connection
-                error!("Handshake failed: {:?}", e);
+                error!(self.log_level, "Handshake failed: {:?}", e);
                 return;
             }
         };
 
-        info!("successful handshake");
+        info!(self.log_level, "successful handshake");
 
         // TODO: Set addr from handshake
-        self.connections.insert(r.their_peer_id, r.stream, todo!()).await;
+        self.connections.insert(r.their_peer_id, r.stream, r.their_addr).await;
     }
 
     /// Handles a packet by executing the default associated implementation and notifying event listeners.
@@ -169,7 +174,7 @@ impl Node {
     /// Meaning packets from the same node will be handled serially.
     // TODO [#12]: Could we use a `&PeerID` to spare clones?
     pub async fn on_packet(&self, n: PeerID, p: Packet) {
-        debug!("Received packet {:?}", p);
+        debug!(self.log_level, "Received packet {:?}", p);
 
         match p {
             Packet::Ping(p) => {
@@ -189,7 +194,7 @@ impl Node {
             },
             Packet::ReturnPeers(p) => {
                 if p.peers.len() >= MAX_PEERS_RETURNED as usize {
-                    warn!("Too many peers returned, dropping");
+                    warn!(self.log_level, "Too many peers returned, dropping");
                     return;
                 }
 

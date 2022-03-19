@@ -40,13 +40,14 @@ pub struct HandshakeData {
     pub their_peer_id: PeerID,
     pub aes_key: AesKey<aes_gcm::aead::generic_array::typenum::U32>,
     pub stream: TcpStream,
+    pub their_addr: String,
 }
 
-pub async fn handshake(mut stream: TcpStream, our_peer_id: &PeerID, our_public_key: &RsaPublicKey, our_private_key: &RsaPrivateKey) -> Result<HandshakeData, HandshakeError> {
+pub async fn handshake(mut stream: TcpStream, our_addr: &str, our_peer_id: &PeerID, our_public_key: &RsaPublicKey, our_private_key: &RsaPrivateKey, log_level: LogLevel) -> Result<HandshakeData, HandshakeError> {
     let (mut r, mut w) = stream.into_split();
 
     // Send our protocol version
-    debug!("Sending protocol version");
+    debug!(log_level, "Sending protocol version");
     let p = Packet::ProtocolVersion(ProtocolVersionPacket {
         protocol: "p2pnet".to_string(),
         supported_versions: vec![PROTOCOL_VERSION],
@@ -59,7 +60,7 @@ pub async fn handshake(mut stream: TcpStream, our_peer_id: &PeerID, our_public_k
     w.write_all(&p).await?;
 
     // Receive their protocol version
-    debug!("Receiving protocol version");
+    debug!(log_level, "Receiving protocol version");
     let plen = r.read_u32().await?;
     if plen >= MAX_PACKET_SIZE {
         return Err(HandshakeError::PacketTooLarge);
@@ -72,18 +73,18 @@ pub async fn handshake(mut stream: TcpStream, our_peer_id: &PeerID, our_public_k
         Packet::ProtocolVersion(p) => {
             // TODO [#16]: We should also accept versions with only the patch version unequal to ours
             if !p.supported_versions.contains(&PROTOCOL_VERSION) {
-                warn!("Protocol version not supported");
+                warn!(log_level, "Protocol version not supported");
                 return Err(HandshakeError::UnsupportedVersion);
             }
         },
         _ => {
-            error!("Expected a protocol version packet");
+            error!(log_level, "Expected a protocol version packet");
             return Err(HandshakeError::UnexpectedPacket);
         }
     }
 
     // Send our RSA public key
-    debug!("Sending RSA public key");
+    debug!(log_level, "Sending RSA public key");
     let mut our_nonce = Vec::with_capacity(16);
     unsafe {our_nonce.set_len(16)};
     OsRng.fill(our_nonce.as_mut_slice());
@@ -100,7 +101,7 @@ pub async fn handshake(mut stream: TcpStream, our_peer_id: &PeerID, our_public_k
     w.write_all(&p).await?;
 
     // Receive their RSA public key
-    debug!("Receiving RSA public key");
+    debug!(log_level, "Receiving RSA public key");
     let plen = r.read_u32().await?;
     if plen >= MAX_PACKET_SIZE {
         return Err(HandshakeError::PacketTooLarge);
@@ -119,7 +120,7 @@ pub async fn handshake(mut stream: TcpStream, our_peer_id: &PeerID, our_public_k
             (RsaPublicKey::new(n, e)?, p.nonce)
         }
         _ => {
-            error!("Expected an init rsa packet");
+            error!(log_level, "Expected an init rsa packet");
             return Err(HandshakeError::UnexpectedPacket);
         }
     };
@@ -131,7 +132,7 @@ pub async fn handshake(mut stream: TcpStream, our_peer_id: &PeerID, our_public_k
     }
 
     // Send our AES init packet
-    debug!("Sending AES init packet");
+    debug!(log_level, "Sending AES init packet");
     let mut our_aes_key_part = Vec::with_capacity(16);
     unsafe {our_aes_key_part.set_len(16)};
     OsRng.fill(our_aes_key_part.as_mut_slice());
@@ -149,7 +150,7 @@ pub async fn handshake(mut stream: TcpStream, our_peer_id: &PeerID, our_public_k
     w.write_all(&p).await?;
 
     // Receive their AES init packet
-    debug!("Receiving AES init packet");
+    debug!(log_level, "Receiving AES init packet");
     let plen = r.read_u32().await?;
     if plen >= MAX_PACKET_SIZE {
         return Err(HandshakeError::PacketTooLarge);
@@ -193,11 +194,42 @@ pub async fn handshake(mut stream: TcpStream, our_peer_id: &PeerID, our_public_k
     };
     let aes_key = AesKey::clone_from_slice(&aes_key);
 
+    // TODO: Encrypt with AES the next packets
+
+    // Send our Ehlo packet
+    debug!(log_level, "Sending Ehlo packet");
+    let p = Packet::Ehlo(EhloPacket {
+        addr: our_addr.to_string(),
+    });
+    let p = p.raw_bytes(&PROTOCOL_SETTINGS)?;
+    let plen = p.len() as u32;
+    let mut plen_buf = [0u8; 4];
+    plen_buf.copy_from_slice(&plen.to_be_bytes());
+    w.write_all(&plen_buf).await?;
+    w.write_all(&p).await?;
+
+    // Receive their Ehlo packet
+    let plen = r.read_u32().await?;
+    if plen >= MAX_PACKET_SIZE {
+        return Err(HandshakeError::PacketTooLarge);
+    }
+    let mut p = Vec::with_capacity(plen as usize);
+    unsafe {p.set_len(plen as usize)};
+    r.read_exact(&mut p).await?;
+    let p = Packet::from_raw_bytes(&p, &PROTOCOL_SETTINGS)?;
+    let addr = match p {
+        Packet::Ehlo(p) => p.addr,
+        _ => {
+            return Err(HandshakeError::UnexpectedPacket);
+        }
+    };
+
     let stream = r.reunite(w).map_err(HandshakeError::StreamReunitionFailure)?;
     Ok(HandshakeData {
         their_public_key,
         their_peer_id,
         aes_key,
         stream,
+        their_addr: addr,
     })
 }
