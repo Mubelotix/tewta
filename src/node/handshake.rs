@@ -209,6 +209,7 @@ pub async fn handshake(mut stream: TcpStream, our_addr: &str, our_peer_id: &Peer
     w.write_all(&p).await?;
 
     // Receive their Ehlo packet
+    debug!(log_level, "Receiving their Ehlo packet");
     let plen = r.read_u32().await?;
     if plen >= MAX_PACKET_SIZE {
         return Err(HandshakeError::PacketTooLarge);
