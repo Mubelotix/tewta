@@ -9,15 +9,17 @@ pub type ReadHalf = crate::stream::testing::TestReadHalf;
 #[cfg(feature = "test")]
 pub type WriteHalf = crate::stream::testing::TestWriteHalf;
 
-struct Peer {
+struct PeerInfo {
     /// How we connected to that peer. Useful for peer routing.
     addr: String,
     write_stream: WriteHalf,
     ping_nanos: Option<usize>,
+
+    // Todo: Hold reputation data here in the PeerInfo struct
 }
 
 pub(super) struct ConnectionPool {
-    connections: Mutex<BTreeMap<PeerID, Peer>>,
+    connections: Mutex<BTreeMap<PeerID, PeerInfo>>,
     node_ref: UnsafeCell<Weak<Node>>,
 }
 
@@ -82,7 +84,7 @@ impl ConnectionPool {
     pub(super) async fn insert(&self, n: PeerID, mut s: TcpStream, addr: String) {
         let mut connections = self.connections.lock().await;
         let (mut read_stream, write_stream) = s.into_split();
-        let peer = Peer {
+        let peer = PeerInfo {
             addr,
             write_stream,
             ping_nanos: None,
