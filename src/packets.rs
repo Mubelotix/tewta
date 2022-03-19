@@ -9,6 +9,8 @@ pub enum Packet {
     InitRsa(InitRsaPacket),
     InitAes(InitAesPacket),
     Ehlo(EhloPacket),
+    FindPeers(FindPeersPacket),
+    ReturnPeers(ReturnPeersPacket),
     Ping(PingPacket),
     Pong(PingPacket),
     Quit(QuitPacket),
@@ -62,6 +64,27 @@ pub struct InitAesPacket {
 #[derive(Protocol, Debug, Clone, Copy)]
 pub struct EhloPacket {
 
+}
+
+#[derive(Protocol, Debug, Clone)]
+pub struct FindPeersPacket {
+    /// A unique per session identifier used to match the response to the request.
+    pub request_id: u32,
+    /// The targeted peer.  
+    /// Note: if this is equal to the PeerID of the sender, it means the sender is looking for its neighbors.
+    /// Do not reply to  by a handle to itself.
+    pub target: PeerID,
+    /// The maximum number of peers to return.
+    pub limit: u16,
+}
+
+#[derive(Protocol, Debug, Clone)]
+pub struct ReturnPeersPacket {
+    /// A unique per session identifier used to match the response to the request.
+    pub request_id: u32,
+    /// The peers found.
+    /// It's better to send them sorted from closest to farthest.
+    pub peers: Vec<(PeerID, String)>,
 }
 
 #[derive(Protocol, Debug, Clone, Copy)]

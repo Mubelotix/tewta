@@ -12,6 +12,8 @@ pub type WriteHalf = crate::stream::testing::TestWriteHalf;
 struct Peer {
     /// Reportedly connected peers
     connected_peers: BTreeMap<PeerID, String>,
+    /// How we connected to that peer. Useful for peer routing.
+    addr: String,
     write_stream: WriteHalf,
     ping_nanos: Option<usize>,
 }
@@ -75,11 +77,12 @@ impl ConnectionPool {
         // We will have to add a parameter in this function
     }
 
-    pub(super) async fn insert(&self, n: PeerID, mut s: TcpStream) {
+    pub(super) async fn insert(&self, n: PeerID, mut s: TcpStream, addr: String) {
         let mut connections = self.connections.lock().await;
         let (mut read_stream, write_stream) = s.into_split();
         let peer = Peer {
             connected_peers: BTreeMap::new(),
+            addr,
             write_stream,
             ping_nanos: None,
         };
@@ -121,6 +124,25 @@ impl ConnectionPool {
     pub(super) async fn len(&self) -> usize {
         let connections = self.connections.lock().await;
         connections.len()
+    }
+
+    pub(super) async fn prepare_find_peers_response(&self, n: &PeerID, p: FindPeersPacket) -> ReturnPeersPacket {
+        let connections = self.connections.lock().await;
+        let mut peers = Vec::new();
+        for (peer_id, peer) in connections.iter() {
+            peers.push((peer_id.clone(), peer.addr.clone()));
+        }
+        std::mem::drop(connections); // Release the lock
+
+        // TODO: Avoid returning the peer that makes the request when certain conditions are met
+
+        peers.sort_by_key(|(id, _)| id.distance(&p.target));
+        peers.truncate(std::cmp::min(MAX_PEERS_RETURNED, p.limit) as usize);
+
+        ReturnPeersPacket {
+            request_id: p.request_id,
+            peers,
+        }
     }
 
     /// Returns a list of all connected node IDs

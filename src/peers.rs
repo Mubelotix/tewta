@@ -7,7 +7,7 @@ pub struct PeerID {
 
 impl PeerID {
     #[allow(clippy::if_same_then_else)]
-    fn distance(&self, other: &PeerID) -> Box<[u8; 64]> {
+    pub fn distance(&self, other: &PeerID) -> Box<[u8; 64]> {
         let (df, dforward) = self.distance_forward(other);
         let (db, dbackward) = self.distance_backward(other);
         if df {

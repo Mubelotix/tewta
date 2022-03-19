@@ -8,9 +8,12 @@ pub struct Node {
     peer_id: PeerID,
 
     ping_id_counter: Counter,
+    peer_req_id_counter: Counter,
 
     on_ping_packet: EventListeners<(PeerID, PingPacket)>,
     on_pong_packet: EventListeners<(PeerID, PingPacket)>,
+    on_find_peers_packet: EventListeners<(PeerID, FindPeersPacket)>,
+    on_return_peers_packet: EventListeners<(PeerID, ReturnPeersPacket)>,
 }
 
 impl Node {
@@ -28,9 +31,12 @@ impl Node {
             rsa_public_key: public_key,
 
             ping_id_counter: Counter::default(),
+            peer_req_id_counter: Counter::default(),
 
             on_ping_packet: EventListeners::default(),
             on_pong_packet: EventListeners::default(),
+            on_find_peers_packet: EventListeners::default(),
+            on_return_peers_packet: EventListeners::default(),
         });
 
         node.connections.set_node_ref(Arc::downgrade(&node));
@@ -153,7 +159,8 @@ impl Node {
 
         info!("successful handshake");
 
-        self.connections.insert(r.their_peer_id, r.stream).await;
+        // TODO: Set addr from handshake
+        self.connections.insert(r.their_peer_id, r.stream, todo!()).await;
     }
 
     /// Handles a packet by executing the default associated implementation and notifying event listeners.
@@ -173,6 +180,23 @@ impl Node {
             }
             Packet::Pong(p) => {
                 self.on_pong_packet.event((n, p)).await;
+            }
+            Packet::FindPeers(p) => {
+                let response = self.connections.prepare_find_peers_response(&n, p.clone()).await;
+                self.connections.send_packet(&n, Packet::ReturnPeers(response)).await;
+                
+                self.on_find_peers_packet.event((n, p)).await;
+            },
+            Packet::ReturnPeers(p) => {
+                if p.peers.len() >= MAX_PEERS_RETURNED as usize {
+                    warn!("Too many peers returned, dropping");
+                    return;
+                }
+
+                // TODO: Sort the peers by distance when received
+                // So that we don't duplicate the work by sending the packet to multiple event handlers
+
+                self.on_return_peers_packet.event((n, p)).await;
             }
             _ => todo!(),
         }
