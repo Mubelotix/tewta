@@ -134,7 +134,7 @@ impl ConnectionPool {
         }
         std::mem::drop(connections); // Release the lock
 
-        // TODO [$6235c241342d9a0009c0f8dc]: Avoid returning the peer that makes the request when certain conditions are met
+        // TODO [#23]: Avoid returning the peer that makes the request when certain conditions are met
 
         peers.sort_by_key(|(id, _)| id.distance(&p.target));
         peers.truncate(std::cmp::min(MAX_PEERS_RETURNED, p.limit) as usize);
