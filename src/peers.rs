@@ -79,31 +79,13 @@ impl From<&rsa::RsaPublicKey> for PeerID {
 use std::cmp::{Ord, PartialOrd, Ordering};
 impl PartialOrd<PeerID> for PeerID {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        for i in 0..64 {
-            let our_byte = unsafe { self.bytes.get_unchecked(i) };
-            let their_byte = unsafe { other.bytes.get_unchecked(i) };
-            if our_byte < their_byte {
-                return Some(Ordering::Less);
-            } else if our_byte > their_byte {
-                return Some(Ordering::Greater);
-            }
-        }
-        Some(Ordering::Equal)
+        self.bytes.partial_cmp(&other.bytes)
     }
 }
 
 impl Ord for PeerID {
     fn cmp(&self, other: &Self) -> Ordering {
-        for i in 0..64 {
-            let our_byte = unsafe { self.bytes.get_unchecked(i) };
-            let their_byte = unsafe { other.bytes.get_unchecked(i) };
-            if our_byte < their_byte {
-                return Ordering::Less;
-            } else if our_byte > their_byte {
-                return Ordering::Greater;
-            }
-        }
-        Ordering::Equal
+        self.bytes.cmp(&other.bytes)
     }
 }
 
