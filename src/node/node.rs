@@ -1,29 +1,30 @@
 use super::*;
 
 pub struct Node {
-    connections: ConnectionPool,
-    dht: DhtStore,
+    pub(super) connections: ConnectionPool,
+    pub(super) dht: DhtStore,
     rsa_private_key: RsaPrivateKey,
-    rsa_public_key: RsaPublicKey,
-    peer_id: PeerID,
-    addr: String,
+    pub(super) rsa_public_key: RsaPublicKey,
+    pub(super) peer_id: PeerID,
+    pub(super) addr: String,
 
     pub(super) ll: LogLevel,
 
     // Counters
-    ping_id_counter: Counter,
-    discover_peer_req_counter: Counter,
+    pub(super) ping_id_counter: Counter,
+    pub(super) discover_peer_req_counter: Counter,
+    pub(super) dht_req_counter: Counter,
 
     // Event listeners
-    on_ping_packet: EventListeners<(PeerID, PingPacket)>,
-    on_pong_packet: EventListeners<(PeerID, PingPacket)>,
-    on_discover_peers_packet: EventListeners<(PeerID, DiscoverPeersPacket)>,
-    on_discover_peers_resp_packet: EventListeners<(PeerID, DiscoverPeersRespPacket)>,
-    on_find_dht_value_packet: EventListeners<(PeerID, FindDhtValuePacket)>,
-    on_find_dht_value_resp_packet: EventListeners<(PeerID, FindDhtValueRespPacket)>,
-    on_find_peer_packet: EventListeners<(PeerID, FindPeerPacket)>,
-    on_find_peer_resp_packet: EventListeners<(PeerID, FindPeerRespPacket)>,
-    on_store_dht_value_packet: EventListeners<(PeerID, StoreDhtValuePacket)>,
+    pub(super) on_ping_packet: EventListeners<(PeerID, PingPacket)>,
+    pub(super) on_pong_packet: EventListeners<(PeerID, PingPacket)>,
+    pub(super) on_discover_peers_packet: EventListeners<(PeerID, DiscoverPeersPacket)>,
+    pub(super) on_discover_peers_resp_packet: EventListeners<(PeerID, DiscoverPeersRespPacket)>,
+    pub(super) on_find_dht_value_packet: EventListeners<(PeerID, FindDhtValuePacket)>,
+    pub(super) on_find_dht_value_resp_packet: EventListeners<(PeerID, FindDhtValueRespPacket)>,
+    pub(super) on_find_peer_packet: EventListeners<(PeerID, FindPeerPacket)>,
+    pub(super) on_find_peer_resp_packet: EventListeners<(PeerID, FindPeerRespPacket)>,
+    pub(super) on_store_dht_value_packet: EventListeners<(PeerID, StoreDhtValuePacket)>,
 }
 
 impl Node {
@@ -48,6 +49,7 @@ impl Node {
 
             ping_id_counter: Counter::default(),
             discover_peer_req_counter: Counter::default(),
+            dht_req_counter: Counter::default(),
 
             on_ping_packet: EventListeners::default(),
             on_pong_packet: EventListeners::default(),
@@ -148,77 +150,6 @@ impl Node {
         }
     }
 
-    pub(super) async fn discover_peers_in_bucket(&self, bucket_level: usize, bucket_id: usize) {
-        assert!(bucket_level < 128 && bucket_id < 3);
-
-        let target = self.peer_id.generate_in_bucket(bucket_level, bucket_id);
-        let mut mask = vec![0xFFu8; bucket_level.div_euclid(4)];
-        match bucket_level.rem_euclid(4) {
-            0 => mask.push(0b11000000),
-            1 => mask.push(0b11110000),
-            2 => mask.push(0b11111100),
-            3 => mask.push(0b11111111),
-            _ => unsafe { unreachable_unchecked() },
-        }
-
-        let mut providers = self.connections.peers_on_bucket_and_under(bucket_level).await;
-        let mut candidates: Vec<(PeerID, String)> = Vec::new();
-        let mut missing_peers = KADEMLIA_BUCKET_SIZE - self.connections.peers_on_bucket(bucket_level, bucket_id).await.len();
-
-        while missing_peers > 0 {
-            if let Some((peer_id, addr)) = candidates.pop() {
-                if !peer_id.matches(&target, &mask) {
-                    warn!(self.ll, "Response contains peers that do not match request");
-                }
-                // TODO [#30]: close connection properly
-                let s = match connect(addr).await {
-                    Some(s) => s,
-                    None => continue,
-                };
-                let r = match handshake(s, &self.addr, &self.peer_id, &self.rsa_public_key, &self.rsa_private_key, self.ll.clone()).await {
-                    Ok(r) => r,
-                    Err(e) => {
-                        error!(self.ll, "Handshake failed: {:?}", e);
-                        return;
-                    }
-                };
-                if r.their_peer_id != peer_id {
-                    warn!(self.ll, "PeerID at this address changed");
-                    continue;
-                }
-                info!(self.ll, "Successfully discovered one peer ({})", r.their_peer_id);
-                missing_peers -= 1;
-                let _ = self.connections.insert(r.their_peer_id, r.stream, r.their_addr).await;
-            } else if let Some(provider) = providers.pop() {
-                let request_id = self.discover_peer_req_counter.next();
-                let p = Packet::DiscoverPeers(DiscoverPeersPacket {
-                    request_id,
-                    target: target.clone(),
-                    mask: mask.clone(),
-                    limit: MAX_DISCOVERY_PEERS_RETURNED,
-                });
-    
-                // TODO [#31]: Add timeout
-    
-                let resp_receiver = self.on_discover_peers_resp_packet.listen().await;
-                self.connections.send_packet(&provider, p).await;
-    
-                loop {
-                    let (n, resp) = resp_receiver.recv().await.unwrap();
-                    if resp.request_id == request_id && n == provider {
-                        candidates = resp.peers;
-                        let connected_peers = self.connections.peers().await;
-                        candidates.retain(|(peer_id, _)| !connected_peers.contains(peer_id));
-                        break;
-                    }
-                }
-            } else {
-                warn!(self.ll, "No providers available");
-                break;
-            }
-        }
-    }
-
     pub async fn on_command(&self, c: Command) {
         match c {
             Command::Conns => {
@@ -253,6 +184,15 @@ impl Node {
             Command::SetLogLevel { level } => {
                 self.ll.set(level);
             }
+            Command::Id => {
+                log::info!("{}", self.peer_id);
+            }
+            Command::Store { key, value } => {
+                self.dht.set(key, DhtValue {data: value}).await;
+            }
+            Command::Find { key } => {
+                self.dht_lookup(key).await;
+            }
             c => log::info!("{:?}", c),
         }
     }
@@ -260,7 +200,7 @@ impl Node {
     pub async fn on_connection(&self, s: TcpStream) {
         // TODO [#17]: Add timeout on handshake
 
-        let r = match handshake(s, &self.addr, &self.peer_id, &self.rsa_public_key, &self.rsa_private_key, self.ll.clone()).await {
+        let r = match self.handshake(s).await {
             Ok(r) => r,
             Err(HandshakeError::SamePeer) => return,
             Err(e) => {
@@ -270,7 +210,7 @@ impl Node {
             }
         };
 
-        trace!(self.ll, "successful handshake");
+        trace!(self.ll, "successful handshake with {}", r.their_peer_id);
 
         let _ = self.connections.insert(r.their_peer_id, r.stream, r.their_addr).await;
     }
@@ -309,6 +249,8 @@ impl Node {
             
             // Kademlia DHT
             Packet::FindDhtValue(p) => {
+                log::debug!("FindDhtValue in {}", self.peer_id);
+
                 let result = match self.dht.get(&p.key).await {
                     Some(mut values) => {
                         // TODO: Order results

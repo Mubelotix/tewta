@@ -33,6 +33,7 @@ pub mod constants {
     pub const MAX_DHT_VALUES_RETURNED: u16 = 64;
     pub const MAX_DHT_PEERS_RETURNED: u16 = 32;
     pub const KADEMLIA_BUCKET_SIZE: usize = 8;
+    pub const KADEMLIA_ALPHA: usize = 3;
     #[cfg(feature = "test")]
     pub const RSA_KEY_LENGHT: usize = 1024;
     #[cfg(not(feature = "test"))]

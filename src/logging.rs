@@ -21,7 +21,7 @@ impl LogLevel {
 
 #[macro_export]
 macro_rules! error {
-    ($i:expr, $($arg:tt),+) => {
+    ($i:expr, $($arg:expr),+) => {
         if $i.load() >= 1 {
             log::error!($($arg,)+);
         }
@@ -30,7 +30,7 @@ macro_rules! error {
 
 #[macro_export]
 macro_rules! warn {
-    ($i:expr, $($arg:tt),+) => {
+    ($i:expr, $($arg:expr),+) => {
         if $i.load() >= 2 {
             log::warn!($($arg,)+);
         }
@@ -48,7 +48,7 @@ macro_rules! info {
 
 #[macro_export]
 macro_rules! debug {
-    ($i:expr, $($arg:tt),+) => {
+    ($i:expr, $($arg:expr),+) => {
         if $i.load() >= 4 {
             log::debug!($($arg,)+);
         }
@@ -57,7 +57,7 @@ macro_rules! debug {
 
 #[macro_export]
 macro_rules! trace {
-    ($i:expr, $($arg:tt),+) => {
+    ($i:expr, $($arg:expr),+) => {
         if $i.load() >= 5 {
             log::trace!($($arg,)+);
         }

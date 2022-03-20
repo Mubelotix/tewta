@@ -102,7 +102,7 @@ impl ConnectionPool {
             ping_nanos: None,
         };
         if connections.contains_key(&n) {
-            warn!(self.ll, "Already connected to {}", n);
+            error!(self.ll, "Already connected to {}", n);
             return Err(());
         }
         connections.insert(n.clone(), peer);
@@ -208,7 +208,7 @@ impl ConnectionPool {
                 let peers = self.peers_on_bucket(bucket_level, bucket_id).await;
 
                 if peers.len() < KADEMLIA_BUCKET_SIZE {
-                    debug!(self.ll, "Bucket {bucket_level} {} is missing peers ({}/{})", (['A', 'B', 'C'][bucket_id]), (peers.len()), KADEMLIA_BUCKET_SIZE);
+                    trace!(self.ll, "Bucket {bucket_level} {} is missing peers ({}/{})", (['A', 'B', 'C'][bucket_id]), (peers.len()), KADEMLIA_BUCKET_SIZE);
 
                     let node = Weak::clone(unsafe {&*self.node_ref.get()}).upgrade().unwrap();
                     spawn(async move {
@@ -217,7 +217,7 @@ impl ConnectionPool {
                 }
 
                 if peers.is_empty() {
-                    debug!(self.ll, "Bucket {bucket_level} {} is empty, there is no point in trying to fill lower buckets", (['A', 'B', 'C'][bucket_id]));
+                    trace!(self.ll, "Bucket {bucket_level} {} is empty, there is no point in trying to fill lower buckets", (['A', 'B', 'C'][bucket_id]));
 
                     // TODO [#29]: Try to fill lower buckets when appropriate
 
@@ -246,5 +246,78 @@ impl ConnectionPool {
             message = "No buckets".to_string();
         }
         log::info!("{}", message);
+    }
+}
+
+impl Node {
+    pub(super) async fn discover_peers_in_bucket(&self, bucket_level: usize, bucket_id: usize) {
+        assert!(bucket_level < 128 && bucket_id < 3);
+
+        let target = self.peer_id.generate_in_bucket(bucket_level, bucket_id);
+        let mut mask = vec![0xFFu8; bucket_level.div_euclid(4)];
+        match bucket_level.rem_euclid(4) {
+            0 => mask.push(0b11000000),
+            1 => mask.push(0b11110000),
+            2 => mask.push(0b11111100),
+            3 => mask.push(0b11111111),
+            _ => unsafe { unreachable_unchecked() },
+        }
+
+        let mut providers = self.connections.peers_on_bucket_and_under(bucket_level).await;
+        let mut candidates: Vec<(PeerID, String)> = Vec::new();
+        let mut missing_peers = KADEMLIA_BUCKET_SIZE - self.connections.peers_on_bucket(bucket_level, bucket_id).await.len();
+
+        while missing_peers > 0 {
+            if let Some((peer_id, addr)) = candidates.pop() {
+                if !peer_id.matches(&target, &mask) {
+                    warn!(self.ll, "Response contains peers that do not match request");
+                }
+                // TODO [#30]: close connection properly
+                let s = match connect(addr).await {
+                    Some(s) => s,
+                    None => continue,
+                };
+                let r = match self.handshake(s).await {
+                    Ok(r) => r,
+                    Err(e) => {
+                        error!(self.ll, "Handshake failed: {:?}", e);
+                        return;
+                    }
+                };
+                if r.their_peer_id != peer_id {
+                    warn!(self.ll, "PeerID at this address changed");
+                    continue;
+                }
+                trace!(self.ll, "Successfully discovered one peer ({})", r.their_peer_id);
+                missing_peers -= 1;
+                let _ = self.connections.insert(r.their_peer_id, r.stream, r.their_addr).await;
+            } else if let Some(provider) = providers.pop() {
+                let request_id = self.discover_peer_req_counter.next();
+                let p = Packet::DiscoverPeers(DiscoverPeersPacket {
+                    request_id,
+                    target: target.clone(),
+                    mask: mask.clone(),
+                    limit: MAX_DISCOVERY_PEERS_RETURNED,
+                });
+    
+                // TODO [#31]: Add timeout
+    
+                let resp_receiver = self.on_discover_peers_resp_packet.listen().await;
+                self.connections.send_packet(&provider, p).await;
+    
+                loop {
+                    let (n, resp) = resp_receiver.recv().await.unwrap();
+                    if resp.request_id == request_id && n == provider {
+                        candidates = resp.peers;
+                        let connected_peers = self.connections.peers().await;
+                        candidates.retain(|(peer_id, _)| !connected_peers.contains(peer_id));
+                        break;
+                    }
+                }
+            } else {
+                trace!(self.ll, "No providers available");
+                break;
+            }
+        }
     }
 }

@@ -17,12 +17,19 @@ pub enum Command {
     Conns,
     Buckets,
     SetLogLevel {
-        #[structopt(short, long)]
         level: u8,
     },
     Ping {
         node_id: crate::peers::PeerID,
     },
+    Store {
+        key: crate::peers::KeyID,
+        value: String,
+    },
+    Find {
+        key: crate::peers::KeyID,
+    },
+    Id,
     Add {
         #[structopt(short)]
         interactive: bool,
