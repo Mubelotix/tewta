@@ -154,7 +154,7 @@ impl ConnectionPool {
 
         // TODO [#23]: Avoid returning the peer that makes the request when certain conditions are met
 
-        // TODO: Create an offline_peers store to return better results
+        // TODO [#28]: Create an offline_peers store to return better results
         // In order to increase the strenght of the network
         use rand::seq::SliceRandom;
         peers.shuffle(&mut OsRng);
@@ -208,7 +208,7 @@ impl ConnectionPool {
                 if peers.is_empty() {
                     debug!(self.ll, "Bucket {bucket_level} {} is empty, there is no point in trying to fill lower buckets", (['A', 'B', 'C'][bucket_id]));
 
-                    // TODO: Try to fill lower buckets when appropriate
+                    // TODO [#29]: Try to fill lower buckets when appropriate
 
                     break 'higher;
                 }
