@@ -155,7 +155,7 @@ impl Node {
                 if !peer_id.matches(&target, &mask) {
                     warn!(self.ll, "Response contains peers that do not match request");
                 }
-                // TODO [$623735a2d05ad70008ada727]: close connection properly
+                // TODO [#30]: close connection properly
                 let s = match connect(addr).await {
                     Some(s) => s,
                     None => continue,
@@ -182,7 +182,7 @@ impl Node {
                     limit: MAX_PEERS_RETURNED,
                 });
     
-                // TODO [$623735a2d05ad70008ada728]: Add timeout
+                // TODO [#31]: Add timeout
     
                 let resp_receiver = self.on_discover_peers_resp_packet.listen().await;
                 self.connections.send_packet(&provider, p).await;
