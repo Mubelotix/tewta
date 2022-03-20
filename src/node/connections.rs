@@ -93,7 +93,7 @@ impl ConnectionPool {
         // We will have to add a parameter in this function
     }
 
-    pub(super) async fn insert(&self, n: PeerID, mut s: TcpStream, addr: String) {
+    pub(super) async fn insert(&self, n: PeerID, mut s: TcpStream, addr: String) -> Result<(), ()> {
         let mut connections = self.connections.lock().await;
         let (mut read_stream, write_stream) = s.into_split();
         let peer = PeerInfo {
@@ -101,6 +101,10 @@ impl ConnectionPool {
             write_stream,
             ping_nanos: None,
         };
+        if connections.contains_key(&n) {
+            warn!(self.ll, "Already connected to {}", n);
+            return Err(());
+        }
         connections.insert(n.clone(), peer);
 
         let node = Weak::clone(unsafe {&*self.node_ref.get()});
@@ -135,6 +139,8 @@ impl ConnectionPool {
                 node.upgrade().unwrap().on_packet(n.clone(), packet).await;
             }
         });
+
+        Ok(())
     }
 
     pub(super) async fn len(&self) -> usize {
@@ -196,8 +202,8 @@ impl ConnectionPool {
             for bucket_id in 0..3 {
                 let peers = self.peers_on_bucket(bucket_level, bucket_id).await;
 
-                if peers.len() <= KADEMLIA_BUCKET_SIZE {
-                    debug!(self.ll, "Bucket {bucket_level} {} is missing peers", (['A', 'B', 'C'][bucket_id]));
+                if peers.len() < KADEMLIA_BUCKET_SIZE {
+                    debug!(self.ll, "Bucket {bucket_level} {} is missing peers ({}/{})", (['A', 'B', 'C'][bucket_id]), (peers.len()), KADEMLIA_BUCKET_SIZE);
 
                     let node = Weak::clone(unsafe {&*self.node_ref.get()}).upgrade().unwrap();
                     spawn(async move {

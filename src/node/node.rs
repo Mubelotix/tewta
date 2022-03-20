@@ -26,7 +26,7 @@ impl Node {
         let peer_id = PeerID::from(&public_key);
         //debug!("RSA keys generated!");
 
-        let log_level = LogLevel::from(0);
+        let log_level = LogLevel::from(1);
 
         let node = Arc::new(Node {
             connections: ConnectionPool::new(peer_id.clone(), log_level.clone()),
@@ -89,8 +89,8 @@ impl Node {
                         // Handle result
                         match result {
                             Ok(d) => node.connections.set_ping(peer_id, d.as_nanos() as usize).await,
-                            Err(_) => {
-                                warn!(node.ll, "Connection timed out, disconnecting");
+                            Err(_) => {                                     
+                                warn!(node.ll, "Connection timed out, disconnecting {}", peer_id);
                                 node.connections.disconnect(peer_id).await;
                             },
                         }
@@ -149,8 +149,9 @@ impl Node {
 
         let mut providers = self.connections.peers_on_bucket_and_under(bucket_level).await;
         let mut candidates: Vec<(PeerID, String)> = Vec::new();
+        let mut missing_peers = KADEMLIA_BUCKET_SIZE - self.connections.peers_on_bucket(bucket_level, bucket_id).await.len();
 
-        while self.connections.peers_on_bucket(bucket_level, bucket_id).await.len() <= KADEMLIA_BUCKET_SIZE {
+        while missing_peers > 0 {
             if let Some((peer_id, addr)) = candidates.pop() {
                 if !peer_id.matches(&target, &mask) {
                     warn!(self.ll, "Response contains peers that do not match request");
@@ -171,8 +172,9 @@ impl Node {
                     warn!(self.ll, "PeerID at this address changed");
                     continue;
                 }
-                info!(self.ll, "Successfully discovered one peer");
-                self.connections.insert(r.their_peer_id, r.stream, r.their_addr).await;
+                info!(self.ll, "Successfully discovered one peer ({})", r.their_peer_id);
+                missing_peers -= 1;
+                let _ = self.connections.insert(r.their_peer_id, r.stream, r.their_addr).await;
             } else if let Some(provider) = providers.pop() {
                 let request_id = self.discover_peer_req_counter.next();
                 let p = Packet::DiscoverPeers(DiscoverPeersPacket {
@@ -246,6 +248,7 @@ impl Node {
 
         let r = match handshake(s, &self.addr, &self.peer_id, &self.rsa_public_key, &self.rsa_private_key, self.ll.clone()).await {
             Ok(r) => r,
+            Err(HandshakeError::SamePeer) => return,
             Err(e) => {
                 // TODO [#18]: We should send quit on errors before terminating the connection
                 error!(self.ll, "Handshake failed: {:?}", e);
@@ -255,7 +258,7 @@ impl Node {
 
         trace!(self.ll, "successful handshake");
 
-        self.connections.insert(r.their_peer_id, r.stream, r.their_addr).await;
+        let _ = self.connections.insert(r.their_peer_id, r.stream, r.their_addr).await;
     }
 
     /// Handles a packet by executing the default associated implementation and notifying event listeners.
