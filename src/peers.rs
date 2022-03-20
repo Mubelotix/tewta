@@ -8,7 +8,7 @@ pub struct PeerID {
 
 impl PeerID {
     pub fn distance(&self, other: &PeerID) -> Box<[u8; 32]> {
-        // TODO: Add more safety to this
+        // TODO [$623735a2d05ad70008ada729]: Add more safety to this
         // By using MaybeUninit (see connections.rs in buckets)
         // Note: there is another place to improve below
         let mut distance: Box<[u8; 32]> = Box::new(unsafe { uninit_array() });
@@ -35,7 +35,7 @@ impl PeerID {
     pub fn bucket(&self, other: &PeerID) -> Option<(usize, usize)> {
         for i in 0..32 {
             let distance = self.bytes[i] ^ other.bytes[i];
-            // TODO: Check that this optimization is really useful
+            // TODO [$623735a2d05ad70008ada72a]: Check that this optimization is really useful
             if distance == 0 {
                 continue;
             }
