@@ -16,6 +16,7 @@ pub mod packets;
 use packets::*;
 pub mod peers;
 use peers::*;
+pub mod util;
 #[macro_use]
 pub mod logging;
 
@@ -28,7 +29,8 @@ lazy_static::lazy_static!(
 pub mod constants {
     pub const PROTOCOL_VERSION: (u32, u32, u32) = (0, 0, 1);
     pub const MAX_PACKET_SIZE: u32 = 1_000_000;
-    pub const MAX_PEERS_RETURNED: u16 = 32;
+    pub const MAX_PEERS_RETURNED: u16 = 64;
+    pub const KADEMLIA_BUCKET_SIZE: usize = 8;
     #[cfg(feature = "test")]
     pub const RSA_KEY_LENGHT: usize = 1024;
     #[cfg(not(feature = "test"))]

@@ -9,8 +9,15 @@ pub enum Packet {
     InitRsa(InitRsaPacket),
     InitAes(InitAesPacket),
     Ehlo(EhloPacket),
-    FindPeers(FindPeersPacket),
-    ReturnPeers(ReturnPeersPacket),
+    DiscoverPeers(DiscoverPeersPacket),
+    DiscoverPeersResp(DiscoverPeersRespPacket),
+    
+    FindValues(),
+    ReturnValues(),
+    FindNode(),
+    ReturnNodes(),
+    StoreValue(),
+
     Ping(PingPacket),
     Pong(PingPacket),
     Quit(QuitPacket),
@@ -67,24 +74,32 @@ pub struct EhloPacket {
     pub addr: String,
 }
 
+/// Sent by a node to discover peers in a bucket.
+/// Peers will be selected if `peer_id & mask == target & mask`.
 #[derive(Protocol, Debug, Clone)]
-pub struct FindPeersPacket {
-    /// A unique per session identifier used to match the response to the request.
+pub struct DiscoverPeersPacket {
+    /// Unique request id used to match the response to the request.
     pub request_id: u32,
-    /// The targeted peer.  
-    /// Note: if this is equal to the PeerID of the sender, it means the sender is looking for its neighbors.
-    /// Do not reply to  by a handle to itself.
+    /// Not necessarly an existing peer, more like a prefix to select peers in the same bucket.
     pub target: PeerID,
-    /// The maximum number of peers to return.
+    /// max-size: 64 bytes
+    pub mask: Vec<u8>,
     pub limit: u16,
 }
 
+/// Response to [DiscoverPeersPacket].
+/// In contrast to [FindPeer], this response shouldn't contain highly trusted data.  
+/// The priority here is to prevent two nodes from sharing too many connections, in order to strenghten the network.  
+/// Hence, it is better to reply with nodes we are not connected to.
 #[derive(Protocol, Debug, Clone)]
-pub struct ReturnPeersPacket {
-    /// A unique per session identifier used to match the response to the request.
+pub struct DiscoverPeersRespPacket {
+    /// Request id from the [DiscoverPeersPacket] packet.
     pub request_id: u32,
-    /// The peers found.
-    /// It's better to send them sorted from closest to farthest.
+    /// Peers that match the request.  
+    /// Ordered by preference determined by the responder.
+    /// The requester is urged to follow these recommandations.
+    /// 
+    /// Note: if [DiscoverPeersPacket::limit] is reached, the replier should still add highly trusted peers at the end of the list, to ensure that not all results are poor quality.
     pub peers: Vec<(PeerID, String)>,
 }
 

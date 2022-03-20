@@ -15,6 +15,7 @@ use structopt::*;
 #[derive(StructOpt, Debug, Clone)]
 pub enum Command {
     Conns,
+    Buckets,
     SetLogLevel {
         #[structopt(short, long)]
         level: u8,

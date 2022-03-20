@@ -17,6 +17,7 @@ pub(self) use {
         peers::PeerID,
         constants::*,
         error, warn, info, debug, trace, logging::LogLevel,
+        util::uninit_array,
         connect,
     },
     std::{
@@ -25,6 +26,7 @@ pub(self) use {
         cell::UnsafeCell,
         time::{Duration, Instant},
         default::Default,
+        hint::unreachable_unchecked,
     },
     tokio::{
         io::{AsyncWriteExt, AsyncReadExt},
