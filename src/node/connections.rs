@@ -83,9 +83,11 @@ impl ConnectionPool {
     }
 
     pub(super) async fn disconnect(&self, n: &PeerID) {
+        let node = Weak::clone(unsafe {&*self.node_ref.get()}).upgrade().unwrap();
         let mut connections = self.connections.lock().await;
-        // TODO [#20]: Warn on debug if node is already disconnected
-        connections.remove(n);
+        if connections.remove(n).is_none() {
+            warn!(node.ll, "Already disconnected: {}", n);
+        }
 
         // TODO [#21]: Send quit packet when disconnecting
         // We will have to add a parameter in this function
