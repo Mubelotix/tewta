@@ -1,5 +1,7 @@
 # p2pnet
 
+[![wakatime](https://wakatime.com/badge/user/6a4c28c6-c833-460a-815e-15ce48b15c25/project/cf07aa0b-1f3c-42ff-a3c1-67a97f3a9ffa.svg)](https://wakatime.com/badge/user/6a4c28c6-c833-460a-815e-15ce48b15c25/project/cf07aa0b-1f3c-42ff-a3c1-67a97f3a9ffa)
+
 An experimental peer-to-peer network.
 I have **no idea** what I am doing, hence the need for this project.
 
