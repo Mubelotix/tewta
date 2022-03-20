@@ -86,7 +86,7 @@ impl Node {
             return self.dht_lookup_on_already_connected_provider(key, &peer_id).await;
         }
 
-        // TODO: Handshake coherence
+        // TODO [$6237a0220a9c8e000977008c]: Handshake coherence
         // Here we are handshaking but we don't insert the node so it does not benefits from all features our node may provide.
         // It's ok but we have to tell the other node to not consider ourselves like a long-time node, but rather a short term connection that will only exchange one request and response.
 
@@ -101,7 +101,7 @@ impl Node {
 
         let (mut r, mut w) = r.stream.into_split();
 
-        // TODO: AES encryption here
+        // TODO [$6237a0220a9c8e000977008d]: AES encryption here
 
         // Send the lookup request
         debug!(self.ll, "Sending lookup request to {}", peer_id);
@@ -134,7 +134,7 @@ impl Node {
             _ => return Err(UnexpectedPacket),
         };
 
-        // TODO: Send Quit packet
+        // TODO [$6237a0220a9c8e000977008e]: Send Quit packet
 
         if p.request_id != request_id {
             return Err(RequestIdMismatch);
@@ -175,7 +175,7 @@ impl Node {
                     return Some(values);
                 }
                 Ok(DhtLookupResult::NotFound(peers)) => {
-                    // TODO: Prevent DOS
+                    // TODO [$6237a0220a9c8e000977008f]: Prevent DOS
                     // A peer could flood the lookup system with bad suggestions
                     
                     debug!(self.ll, "DHT lookup not found, but we have more {} peers", peers.len());
