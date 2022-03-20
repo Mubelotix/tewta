@@ -2,7 +2,7 @@ pub use super::*;
 
 #[derive(Debug, Clone, protocol_derive::Protocol)]
 pub struct DhtValue {
-    // TODO: Populate the DhtValue struct
+    // TODO [$623764bbf725d800074e0470]: Populate the DhtValue struct
 }
 
 #[derive(Default)]
