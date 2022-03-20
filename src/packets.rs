@@ -1,23 +1,28 @@
 use protocol::*;
 use protocol_derive::*;
 use std::collections::BTreeMap;
-use crate::peers::PeerID;
+use crate::peers::{PeerID, KeyID};
 
 #[derive(Protocol, Debug, Clone)]
 pub enum Packet {
+    // Networking packets
     ProtocolVersion(ProtocolVersionPacket),
     InitRsa(InitRsaPacket),
     InitAes(InitAesPacket),
     Ehlo(EhloPacket),
+
+    // Peer discovery
     DiscoverPeers(DiscoverPeersPacket),
     DiscoverPeersResp(DiscoverPeersRespPacket),
-    
-    FindValues(),
-    ReturnValues(),
-    FindNode(),
-    ReturnNodes(),
-    StoreValue(),
 
+    // Kademlia DHT
+    FindDhtValue(FindDhtValuePacket),
+    FindDhtValueResp(FindDhtValueRespPacket),
+    FindPeer(FindPeerPacket),
+    FindPeerResp(FindPeerRespPacket),
+    StoreDhtValue(StoreDhtValuePacket),
+
+    // Utility packets
     Ping(PingPacket),
     Pong(PingPacket),
     Quit(QuitPacket),
@@ -102,6 +107,65 @@ pub struct DiscoverPeersRespPacket {
     /// Note: if [DiscoverPeersPacket::limit] is reached, the replier should still add highly trusted peers at the end of the list, to ensure that not all results are poor quality.
     pub peers: Vec<(PeerID, String)>,
 }
+
+/// *Request for [`FindDhtValueRespPacket`]*
+#[derive(Protocol, Debug, Clone)]
+pub struct FindDhtValuePacket {
+    /// Unique request id used to match the response to the request.
+    pub request_id: u32,
+    /// The key to find.
+    pub key: KeyID,
+    /// Maximum number of peers to return if the key is not found.
+    pub limit_peers: u16,
+    /// Maximum number of values to return if the key is found.
+    pub limit_values: u16,
+}
+
+/// *Response to [`FindDhtValuePacket`]*
+#[derive(Protocol, Debug, Clone)]
+pub struct FindDhtValueRespPacket {
+    /// Unique request id used to match the response to the request.
+    pub request_id: u32,
+    pub result: DhtLookupResult,
+}
+
+#[derive(Protocol, Debug, Clone)]
+pub enum DhtLookupResult {
+    /// The value was found.
+    Found(Vec<crate::node::DhtValue>),
+    /// The value was not found, but here are some peers that might have it.
+    /// Same particularities as [FindPeerRespPacket::peers]
+    NotFound(Vec<(PeerID, String)>),
+}
+
+/// *Request for [`FindPeerRespPacket`]*
+#[derive(Protocol, Debug, Clone)]
+pub struct FindPeerPacket {
+    /// Unique request id used to match the response to the request.
+    pub request_id: u32,
+    /// The peer to find.
+    pub peer_id: PeerID,
+    /// Maximum number of peers to return.
+    pub limit: u16,
+}
+
+/// *Response to [`FindPeerPacket`]*
+#[derive(Protocol, Debug, Clone)]
+pub struct FindPeerRespPacket {
+    /// Unique request id used to match the response to the request.
+    pub request_id: u32,
+    /// Peers that could be useful for further completion of the request.
+    /// This list might contain the peer we are looking for.
+    /// The order does not matter as this will probably be reordered by the receiver of this packet.
+    pub peers: Vec<(PeerID, String)>,
+}
+
+/// TODO: Kademlia store value
+#[derive(Protocol, Debug, Clone)]
+pub struct StoreDhtValuePacket {
+
+}
+
 
 #[derive(Protocol, Debug, Clone, Copy)]
 pub struct PingPacket {

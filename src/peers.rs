@@ -1,6 +1,8 @@
 use crate::util::uninit_array;
 use std::hint::unreachable_unchecked;
 
+pub type KeyID = PeerID;
+
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct PeerID {
     bytes: Box<[u8; 32]>,

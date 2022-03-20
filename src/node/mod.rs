@@ -8,13 +8,15 @@ mod counter;
 pub use counter::*;
 mod handshake;
 pub use handshake::*;
+mod dht;
+pub use dht::*;
 
 pub(self) use {
     crate::{
         commands::Command,
         stream::TcpStream,
         packets::*,
-        peers::PeerID,
+        peers::{PeerID, KeyID},
         constants::*,
         error, warn, info, debug, trace, logging::LogLevel,
         util::uninit_array,
@@ -27,6 +29,7 @@ pub(self) use {
         time::{Duration, Instant},
         default::Default,
         hint::unreachable_unchecked,
+        cmp::min,
     },
     tokio::{
         io::{AsyncWriteExt, AsyncReadExt},

@@ -2,6 +2,7 @@ use super::*;
 
 pub struct Node {
     connections: ConnectionPool,
+    dht: DhtStore,
     rsa_private_key: RsaPrivateKey,
     rsa_public_key: RsaPublicKey,
     peer_id: PeerID,
@@ -9,13 +10,20 @@ pub struct Node {
 
     pub(super) ll: LogLevel,
 
+    // Counters
     ping_id_counter: Counter,
     discover_peer_req_counter: Counter,
 
+    // Event listeners
     on_ping_packet: EventListeners<(PeerID, PingPacket)>,
     on_pong_packet: EventListeners<(PeerID, PingPacket)>,
     on_discover_peers_packet: EventListeners<(PeerID, DiscoverPeersPacket)>,
     on_discover_peers_resp_packet: EventListeners<(PeerID, DiscoverPeersRespPacket)>,
+    on_find_dht_value_packet: EventListeners<(PeerID, FindDhtValuePacket)>,
+    on_find_dht_value_resp_packet: EventListeners<(PeerID, FindDhtValueRespPacket)>,
+    on_find_peer_packet: EventListeners<(PeerID, FindPeerPacket)>,
+    on_find_peer_resp_packet: EventListeners<(PeerID, FindPeerRespPacket)>,
+    on_store_dht_value_packet: EventListeners<(PeerID, StoreDhtValuePacket)>,
 }
 
 impl Node {
@@ -30,6 +38,7 @@ impl Node {
 
         let node = Arc::new(Node {
             connections: ConnectionPool::new(peer_id.clone(), log_level.clone()),
+            dht: DhtStore::default(),
             peer_id,
             addr,
             rsa_private_key: private_key,
@@ -44,6 +53,11 @@ impl Node {
             on_pong_packet: EventListeners::default(),
             on_discover_peers_packet: EventListeners::default(),
             on_discover_peers_resp_packet: EventListeners::default(),
+            on_find_dht_value_packet: EventListeners::default(),
+            on_find_dht_value_resp_packet: EventListeners::default(),
+            on_find_peer_packet: EventListeners::default(),
+            on_find_peer_resp_packet: EventListeners::default(),
+            on_store_dht_value_packet: EventListeners::default(),
         });
 
         node.connections.set_node_ref(Arc::downgrade(&node));
@@ -181,7 +195,7 @@ impl Node {
                     request_id,
                     target: target.clone(),
                     mask: mask.clone(),
-                    limit: MAX_PEERS_RETURNED,
+                    limit: MAX_DISCOVERY_PEERS_RETURNED,
                 });
     
                 // TODO [#31]: Add timeout
@@ -265,20 +279,11 @@ impl Node {
     /// 
     /// This method will be called concurrently, but only for different nodes.
     /// Meaning packets from the same node will be handled serially.
-    // TODO [#12]: Could we use a `&PeerID` to spare clones?
     pub async fn on_packet(&self, n: PeerID, p: Packet) {
         trace!(self.ll, "Received packet {:?}", p);
 
         match p {
-            Packet::Ping(p) => {
-                let response = Packet::Pong(p);
-                self.connections.send_packet(&n, response).await;
-
-                self.on_ping_packet.event((n, p)).await;
-            }
-            Packet::Pong(p) => {
-                self.on_pong_packet.event((n, p)).await;
-            }
+            // Peer discovery
             Packet::DiscoverPeers(p) => {
                 if p.mask.len() > 32 {
                     warn!(self.ll, "Mask too long, dropping");
@@ -291,7 +296,7 @@ impl Node {
                 self.on_discover_peers_packet.event((n, p)).await;
             },
             Packet::DiscoverPeersResp(p) => {
-                if p.peers.len() > MAX_PEERS_RETURNED as usize {
+                if p.peers.len() > MAX_DISCOVERY_PEERS_RETURNED as usize {
                     warn!(self.ll, "Too many peers returned, dropping");
                     return;
                 }
@@ -301,6 +306,87 @@ impl Node {
 
                 self.on_discover_peers_resp_packet.event((n, p)).await;
             }
+            
+            // Kademlia DHT
+            Packet::FindDhtValue(p) => {
+                let result = match self.dht.get(&p.key).await {
+                    Some(mut values) => {
+                        // TODO: Order results
+
+                        let max_values = min(MAX_DHT_VALUES_RETURNED, p.limit_values);
+                        values.truncate(max_values as usize);
+                        DhtLookupResult::Found(values)
+                    }
+                    None => {
+                        // TODO: We might want to use offline nodes too
+
+                        let mut peers = self.connections.peers_with_addrs().await;
+                        peers.sort_by_key(|(peer_id, _)| peer_id.distance(&p.key));
+                        let max_peers = min(MAX_DHT_PEERS_RETURNED, p.limit_peers);
+                        peers.truncate(max_peers as usize);
+                        DhtLookupResult::NotFound(peers)
+                    }
+                };
+
+                self.connections.send_packet(&n, Packet::FindDhtValueResp(FindDhtValueRespPacket {
+                    request_id: p.request_id,
+                    result
+                })).await;
+
+                self.on_find_dht_value_packet.event((n, p)).await;
+            }
+            Packet::FindDhtValueResp(p) => {
+                match &p.result {
+                    DhtLookupResult::Found(values) => if values.len() > MAX_DHT_VALUES_RETURNED as usize {
+                        warn!(self.ll, "Too many values returned, dropping");
+                        return;
+                    }
+                    DhtLookupResult::NotFound(peers) => if peers.len() > MAX_DHT_PEERS_RETURNED as usize {
+                        warn!(self.ll, "Too many peers returned, dropping");
+                        return;
+                    }
+                }
+
+                self.on_find_dht_value_resp_packet.event((n, p)).await;
+            }
+            Packet::FindPeer(p) => {
+                let mut peers = self.connections.peers_with_addrs().await;
+                peers.sort_by_key(|(peer_id, _)| peer_id.distance(&p.peer_id));
+                let max_peers = min(MAX_DHT_PEERS_RETURNED, p.limit);
+                peers.truncate(max_peers as usize);
+
+                self.connections.send_packet(&n, Packet::FindPeerResp(FindPeerRespPacket {
+                    request_id: p.request_id,
+                    peers
+                })).await;
+
+                self.on_find_peer_packet.event((n, p)).await;
+            }
+            Packet::FindPeerResp(p) => {
+                if p.peers.len() > MAX_DHT_PEERS_RETURNED as usize {
+                    warn!(self.ll, "Too many peers returned, dropping");
+                    return;
+                }
+
+                self.on_find_peer_resp_packet.event((n, p)).await;
+            }
+            Packet::StoreDhtValue(p) => {
+                // TODO: store value
+
+                self.on_store_dht_value_packet.event((n, p)).await;
+            }
+
+            // Utility packets
+            Packet::Ping(p) => {
+                let response = Packet::Pong(p);
+                self.connections.send_packet(&n, response).await;
+
+                self.on_ping_packet.event((n, p)).await;
+            }
+            Packet::Pong(p) => {
+                self.on_pong_packet.event((n, p)).await;
+            }
+
             _ => todo!(),
         }
     }

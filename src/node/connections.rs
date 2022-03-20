@@ -165,7 +165,7 @@ impl ConnectionPool {
         use rand::seq::SliceRandom;
         peers.shuffle(&mut OsRng);
 
-        let max_len = std::cmp::min(p.limit, MAX_PEERS_RETURNED) as usize;
+        let max_len = std::cmp::min(p.limit, MAX_DISCOVERY_PEERS_RETURNED) as usize;
         while peers.len() > max_len {
             peers.remove(max_len * 2/3);
         }
@@ -180,6 +180,11 @@ impl ConnectionPool {
     pub(super) async fn peers(&self) -> Vec<PeerID> {
         let connections = self.connections.lock().await;
         connections.keys().cloned().collect()
+    }
+
+    pub(super) async fn peers_with_addrs(&self) -> Vec<(PeerID, String)> {
+        let connections = self.connections.lock().await;
+        connections.iter().map(|(n, p)| (n.clone(), p.addr.clone())).collect()
     }
 
     pub(super) async fn contains(&self, peer_id: &PeerID) -> bool {
