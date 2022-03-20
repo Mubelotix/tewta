@@ -311,14 +311,14 @@ impl Node {
             Packet::FindDhtValue(p) => {
                 let result = match self.dht.get(&p.key).await {
                     Some(mut values) => {
-                        // TODO [$623764bbf725d800074e0471]: Order results
+                        // TODO [#35]: Order results
 
                         let max_values = min(MAX_DHT_VALUES_RETURNED, p.limit_values);
                         values.truncate(max_values as usize);
                         DhtLookupResult::Found(values)
                     }
                     None => {
-                        // TODO [$623764bbf725d800074e0472]: We might want to use offline nodes too
+                        // TODO [#36]: We might want to use offline nodes too
 
                         let mut peers = self.connections.peers_with_addrs().await;
                         peers.sort_by_key(|(peer_id, _)| peer_id.distance(&p.key));
@@ -371,7 +371,7 @@ impl Node {
                 self.on_find_peer_resp_packet.event((n, p)).await;
             }
             Packet::StoreDhtValue(p) => {
-                // TODO [$623764bbf725d800074e0473]: store value
+                // TODO [#37]: store value
 
                 self.on_store_dht_value_packet.event((n, p)).await;
             }
