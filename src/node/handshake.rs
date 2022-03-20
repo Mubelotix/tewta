@@ -194,7 +194,7 @@ pub async fn handshake(mut stream: TcpStream, our_addr: &str, our_peer_id: &Peer
     };
     let aes_key = AesKey::clone_from_slice(&aes_key);
 
-    // TODO: Encrypt with AES the next packets
+    // TODO [#27]: Encrypt with AES the next packets
 
     // Send our Ehlo packet
     trace!(log_level, "Sending Ehlo packet");

@@ -43,7 +43,7 @@ impl ConnectionPool {
     }
 
     pub(super) async fn send_packet(&self, n: &PeerID, p: Packet) {
-        // TODO: Remove these ugly weak upgraded refs
+        // TODO [#26]: Remove these ugly weak upgraded refs
         let node = Weak::clone(unsafe {&*self.node_ref.get()}).upgrade().unwrap();
 
         let p = match p.raw_bytes(&PROTOCOL_SETTINGS) {
