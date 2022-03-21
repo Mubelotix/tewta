@@ -6,8 +6,6 @@ An experimental peer-to-peer network using [Kademlia](https://en.wikipedia.org/w
 
 The end goal is to achieve a fully functional distributed clone of Twitter.
 
-**WARNING: currently unlicensed**
-
 ## Non-goals
 
 - Care about NAT traversal. Users gotta have to fix their shitty network settings.*
@@ -26,3 +24,21 @@ I could have used [libp2p](https://libp2p.io/) and that would have been amazing,
 - I want to be able to overoptimize things
 - I fear I could get blocked by missing features
 - It's a learning project after all, why would I want to use a library?
+
+### 
+
+    p2pnet; distributed social network
+    Copyright (C) 2022  Mubelotix <mubelotix@gmail.com>
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU Affero General Public License as published
+    by the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU Affero General Public License for more details.
+
+    You should have received a copy of the GNU Affero General Public License
+    along with this program.  If not, see <https://www.gnu.org/licenses/>.
