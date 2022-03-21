@@ -15,7 +15,7 @@ struct PeerInfo {
     write_stream: WriteHalf,
     ping_nanos: Option<usize>,
 
-    // TODO [$62388efa70534e000b48e90c]: Hold reputation data here in the PeerInfo struct
+    // TODO [#43]: Hold reputation data here in the PeerInfo struct
 }
 
 pub(super) struct ConnectionPool {
