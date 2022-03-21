@@ -207,7 +207,7 @@ impl Node {
                 warn!(self.ll, "Handshake failed: {:?}", e);
 
                 // Send quit packet
-                let p = match e.into_quit().raw_bytes(&PROTOCOL_SETTINGS) {
+                let p = match Packet::Quit(e.into_quit()).raw_bytes(&PROTOCOL_SETTINGS) {
                     Ok(p) => p,
                     Err(e) => {
                         error!(self.ll, "Invalid quit packet from us {:?}", e);
