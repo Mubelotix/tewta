@@ -46,11 +46,11 @@ impl ConnectionPool {
         }
     }
 
-    pub(super) async fn send_packet(&self, n: &PeerID, p: Packet) {
+    pub(super) async fn send_packet(&self, peer_id: &PeerID, packet: Packet) {
         // TODO [#26]: Remove these ugly weak upgraded refs
         let node = Weak::clone(unsafe {&*self.node_ref.get()}).upgrade().unwrap();
 
-        let p = match p.raw_bytes(&PROTOCOL_SETTINGS) {
+        let p = match packet.raw_bytes(&PROTOCOL_SETTINGS) {
             Ok(p) => p,
             Err(e) => {
                 error!(node.ll, "{:?}", e);
@@ -60,10 +60,10 @@ impl ConnectionPool {
 
         let mut connections = self.connections.lock().await;
 
-        let peer = match connections.get_mut(n) {
+        let peer = match connections.get_mut(peer_id) {
             Some(s) => s,
             None => {
-                warn!(node.ll, "no connection to {}", n);
+                warn!(node.ll, "no connection to {}", peer_id);
                 return;
             },
         };
@@ -74,7 +74,7 @@ impl ConnectionPool {
         buf.copy_from_slice(&len.to_be_bytes());
         peer.write_stream.write_all(&buf).await.unwrap();
         peer.write_stream.write_all(&p).await.unwrap();
-        trace!(node.ll, "packet written to {}: {:?}", n, p);
+        trace!(node.ll, "packet written to {}: {:?}", peer_id, p);
     }
 
     pub(super) async fn set_ping(&self, n: &PeerID, ping_nanos: usize) {
@@ -87,14 +87,19 @@ impl ConnectionPool {
     }
 
     pub(super) async fn disconnect(&self, n: &PeerID) {
+        // Send a generic quit (hopefully a better one has already been sent)
+        self.send_packet(n, Packet::Quit(QuitPacket {
+            reason_code: String::from("Quit confirmation"),
+            message: None,
+            report_fault: false,
+        })).await;
+
+        // Remove the node
         let node = Weak::clone(unsafe {&*self.node_ref.get()}).upgrade().unwrap();
         let mut connections = self.connections.lock().await;
         if connections.remove(n).is_none() {
-            warn!(node.ll, "Already disconnected: {}", n);
+            warn!(node.ll, "already disconnected {}", n);
         }
-
-        // TODO [#21]: Send quit packet when disconnecting
-        // We will have to add a parameter in this function
     }
 
     pub(super) async fn insert(&self, n: PeerID, mut r: ReadHalf, mut w: WriteHalf, addr: String) -> Result<(), ()> {

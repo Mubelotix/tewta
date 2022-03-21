@@ -110,6 +110,11 @@ impl Node {
                             Ok(d) => node.connections.set_ping(peer_id, d.as_nanos() as usize).await,
                             Err(_) => {                                     
                                 warn!(node.ll, "Connection timed out, disconnecting {}", peer_id);
+                                node.connections.send_packet(peer_id, Packet::Quit(QuitPacket {
+                                    reason_code: String::from("Timeout"),
+                                    message: None,
+                                    report_fault: false,
+                                })).await;
                                 node.connections.disconnect(peer_id).await;
                             },
                         }
