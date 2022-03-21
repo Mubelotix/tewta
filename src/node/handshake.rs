@@ -46,6 +46,8 @@ pub struct HandshakeData {
 
 impl Node {
     pub async fn handshake(&self, mut stream: TcpStream) -> Result<HandshakeData, HandshakeError> {
+        use HandshakeError::*;
+
         let (mut r, mut w) = stream.into_split();
 
         // Send our protocol version
@@ -65,7 +67,7 @@ impl Node {
         trace!(self.ll, "Receiving protocol version");
         let plen = r.read_u32().await?;
         if plen >= MAX_PACKET_SIZE {
-            return Err(HandshakeError::PacketTooLarge);
+            return Err(PacketTooLarge);
         }
         let mut p = Vec::with_capacity(plen as usize);
         unsafe {p.set_len(plen as usize)};
@@ -76,12 +78,12 @@ impl Node {
                 // TODO [#16]: We should also accept versions with only the patch version unequal to ours
                 if !p.supported_versions.contains(&PROTOCOL_VERSION) {
                     warn!(self.ll, "Protocol version not supported");
-                    return Err(HandshakeError::UnsupportedVersion);
+                    return Err(UnsupportedVersion);
                 }
             },
             _ => {
                 error!(self.ll, "Expected a protocol version packet");
-                return Err(HandshakeError::UnexpectedPacket);
+                return Err(UnexpectedPacket);
             }
         }
 
@@ -106,7 +108,7 @@ impl Node {
         trace!(self.ll, "Receiving RSA public key");
         let plen = r.read_u32().await?;
         if plen >= MAX_PACKET_SIZE {
-            return Err(HandshakeError::PacketTooLarge);
+            return Err(PacketTooLarge);
         }
         let mut p = Vec::with_capacity(plen as usize);
         unsafe {p.set_len(plen as usize)};
@@ -117,23 +119,23 @@ impl Node {
                 let n = rsa::BigUint::from_bytes_le(&p.rsa_public_key_modulus);
                 let e = rsa::BigUint::from_bytes_le(&p.rsa_public_key_exponent);
                 if p.nonce.len() != 16 {
-                    return Err(HandshakeError::InvalidNonce);
+                    return Err(InvalidNonce);
                 }
                 (RsaPublicKey::new(n, e)?, p.nonce)
             }
             _ => {
                 error!(self.ll, "Expected an init rsa packet");
-                return Err(HandshakeError::UnexpectedPacket);
+                return Err(UnexpectedPacket);
             }
         };
 
         // Prevent invalid connections
         let their_peer_id = PeerID::from(&their_public_key);
         if self.peer_id == their_peer_id {
-            return Err(HandshakeError::SamePeer);
+            return Err(SamePeer);
         }
         if self.connections.contains(&their_peer_id).await {
-            return Err(HandshakeError::AlreadyConnected);
+            return Err(AlreadyConnected);
         }
 
         // Send our AES init packet
@@ -158,7 +160,7 @@ impl Node {
         trace!(self.ll, "Receiving AES init packet");
         let plen = r.read_u32().await?;
         if plen >= MAX_PACKET_SIZE {
-            return Err(HandshakeError::PacketTooLarge);
+            return Err(PacketTooLarge);
         }
         let mut p = Vec::with_capacity(plen as usize);
         unsafe {p.set_len(plen as usize)};
@@ -169,17 +171,17 @@ impl Node {
         let mut their_aes_key_part = match p {
             Packet::InitAes(p) => {
                 if p.aes_key_part.len() != 16 {
-                    return Err(HandshakeError::InvalidAesKeyLenght);
+                    return Err(InvalidAesKeyLenght);
                 }
 
                 if p.nonce != our_nonce {
-                    return Err(HandshakeError::InvalidNonceCopy);
+                    return Err(InvalidNonceCopy);
                 }
 
                 p.aes_key_part
             },
             _ => {
-                return Err(HandshakeError::UnexpectedPacket);
+                return Err(UnexpectedPacket);
             }
         };
 
@@ -194,7 +196,7 @@ impl Node {
                 their_aes_key_part
             },
             std::cmp::Ordering::Equal => {
-                return Err(HandshakeError::SamePeer);
+                return Err(SamePeer);
             },
         };
         let aes_key = AesKey::clone_from_slice(&aes_key);
@@ -217,7 +219,7 @@ impl Node {
         trace!(self.ll, "Receiving their Ehlo packet");
         let plen = r.read_u32().await?;
         if plen >= MAX_PACKET_SIZE {
-            return Err(HandshakeError::PacketTooLarge);
+            return Err(PacketTooLarge);
         }
         let mut p = Vec::with_capacity(plen as usize);
         unsafe {p.set_len(plen as usize)};
@@ -226,11 +228,11 @@ impl Node {
         let addr = match p {
             Packet::Ehlo(p) => p.addr,
             _ => {
-                return Err(HandshakeError::UnexpectedPacket);
+                return Err(UnexpectedPacket);
             }
         };
 
-        let stream = r.reunite(w).map_err(HandshakeError::StreamReunitionFailure)?;
+        let stream = r.reunite(w).map_err(StreamReunitionFailure)?;
         Ok(HandshakeData {
             their_public_key,
             their_peer_id,
