@@ -198,16 +198,39 @@ impl Node {
     }
 
     pub async fn on_connection(&self, s: TcpStream) {
-        // TODO [#17]: Add timeout on handshake
-
+        trace!(self.ll, "New connection");
+        
         let (mut r, mut w) = s.into_split();
-        let result = match self.handshake(&mut r, &mut w).await {
-            Ok(r) => r,
-            Err(e) => {
+        let result = match timeout(Duration::from_secs(40), self.handshake(&mut r, &mut w)).await {
+            Ok(Ok(result)) => result,
+            Ok(Err(e)) => {
                 warn!(self.ll, "Handshake failed: {:?}", e);
 
                 // Send quit packet
                 let p = match e.into_quit().raw_bytes(&PROTOCOL_SETTINGS) {
+                    Ok(p) => p,
+                    Err(e) => {
+                        error!(self.ll, "Invalid quit packet from us {:?}", e);
+                        return;
+                    }
+                };
+                let plen = p.len() as u32;
+                let mut plen_buf = [0u8; 4];
+                plen_buf.copy_from_slice(&plen.to_be_bytes());
+                let _ = w.write_all(&plen_buf).await;
+                let _ = w.write_all(&p).await;
+
+                return;
+            }
+            Err(_) => {
+                warn!(self.ll, "Handshake timed out");
+
+                // Send quit packet
+                let p = match Packet::Quit(QuitPacket {
+                    reason_code: String::from("HandshakeError::Timeout"),
+                    message: None,
+                    report_fault: false,
+                }).raw_bytes(&PROTOCOL_SETTINGS) {
                     Ok(p) => p,
                     Err(e) => {
                         error!(self.ll, "Invalid quit packet from us {:?}", e);
