@@ -19,7 +19,6 @@ pub(self) use {
         peers::{PeerID, KeyID},
         constants::*,
         error, warn, info, debug, trace, logging::LogLevel,
-        util::uninit_array,
         connect,
     },
     std::{

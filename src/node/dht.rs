@@ -90,16 +90,14 @@ impl Node {
         // Here we are handshaking but we don't insert the node so it does not benefits from all features our node may provide.
         // It's ok but we have to tell the other node to not consider ourselves like a long-time node, but rather a short term connection that will only exchange one request and response.
 
-        let s = connect(addr).await.ok_or(FailedToConnect)?;
+        let (mut r, mut w) = connect(addr).await.ok_or(FailedToConnect)?.into_split();
         debug!(self.ll, "Connected to {}", peer_id);
-        let mut r = self.handshake(s).await.map_err(HandshakeError)?;
+        let result = self.handshake(&mut r, &mut w).await.map_err(HandshakeError)?;
         debug!(self.ll, "Handshake with {} completed", peer_id);
 
-        if peer_id != r.their_peer_id {
+        if peer_id != result.their_peer_id {
             return Err(IdentityMismatch);
         }
-
-        let (mut r, mut w) = r.stream.into_split();
 
         // TODO [#40]: AES encryption here
 

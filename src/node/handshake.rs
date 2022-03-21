@@ -1,4 +1,5 @@
 use super::*;
+use HandshakeError::*;
 
 // TODO [#13]: HandshakeError should implement Display
 
@@ -20,19 +21,44 @@ pub enum HandshakeError {
 
 impl From<std::io::Error> for HandshakeError {
     fn from(e: std::io::Error) -> Self {
-        HandshakeError::IoError(e)
+        IoError(e)
     }
 }
 
 impl From<protocol::Error> for HandshakeError {
     fn from(e: protocol::Error) -> Self {
-        HandshakeError::ProtocolError(e)
+        ProtocolError(e)
     }
 }
 
 impl From<rsa::errors::Error> for HandshakeError {
     fn from(e: rsa::errors::Error) -> Self {
-        HandshakeError::RsaError(e)
+        RsaError(e)
+    }
+}
+
+impl IntoQuit for HandshakeError {
+    fn reason_code(&self) -> &'static str {
+        match self {
+            UnsupportedVersion => "HandshakeError::UnsupportedVersion",
+            UnexpectedPacket => "HandshakeError::UnexpectedPacket",
+            InvalidAesKeyLenght => "HandshakeError::InvalidAesKeyLenght",
+            InvalidNonce => "HandshakeError::InvalidNonce",
+            InvalidNonceCopy => "HandshakeError::InvalidNonceCopy",
+            PacketTooLarge => "HandshakeError::PacketTooLarge",
+            AlreadyConnected => "HandshakeError::AlreadyConnected",
+            SamePeer => "HandshakeError::SamePeer",
+            ProtocolError(_) => "HandshakeError::ProtocolError",
+            RsaError(_) => "HandshakeError::RsaError",
+            IoError(_) => "HandshakeError::IoError",
+            StreamReunitionFailure(_) => "HandshakeError::StreamReunitionFailure",
+        }
+    }
+
+    fn message(&self) -> Option<String> { None }
+
+    fn report_fault(&self) -> bool {
+        matches!(self, UnexpectedPacket | InvalidNonce | InvalidNonceCopy | ProtocolError(_))
     }
 }
 
@@ -40,15 +66,12 @@ pub struct HandshakeData {
     pub their_public_key: RsaPublicKey,
     pub their_peer_id: PeerID,
     pub aes_key: AesKey<aes_gcm::aead::generic_array::typenum::U32>,
-    pub stream: TcpStream,
     pub their_addr: String,
 }
 
 impl Node {
-    pub async fn handshake(&self, mut stream: TcpStream) -> Result<HandshakeData, HandshakeError> {
+    pub async fn handshake(&self, r: &mut ReadHalf, w: &mut WriteHalf) -> Result<HandshakeData, HandshakeError> {
         use HandshakeError::*;
-
-        let (mut r, mut w) = stream.into_split();
 
         // Send our protocol version
         trace!(self.ll, "Sending protocol version");
@@ -232,12 +255,10 @@ impl Node {
             }
         };
 
-        let stream = r.reunite(w).map_err(StreamReunitionFailure)?;
         Ok(HandshakeData {
             their_public_key,
             their_peer_id,
             aes_key,
-            stream,
             their_addr: addr,
         })
     }

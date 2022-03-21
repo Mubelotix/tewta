@@ -200,19 +200,33 @@ impl Node {
     pub async fn on_connection(&self, s: TcpStream) {
         // TODO [#17]: Add timeout on handshake
 
-        let r = match self.handshake(s).await {
+        let (mut r, mut w) = s.into_split();
+        let result = match self.handshake(&mut r, &mut w).await {
             Ok(r) => r,
-            Err(HandshakeError::SamePeer) => return,
             Err(e) => {
-                // TODO [#18]: We should send quit on errors before terminating the connection
-                error!(self.ll, "Handshake failed: {:?}", e);
+                warn!(self.ll, "Handshake failed: {:?}", e);
+
+                // Send quit packet
+                let p = match e.into_quit().raw_bytes(&PROTOCOL_SETTINGS) {
+                    Ok(p) => p,
+                    Err(e) => {
+                        error!(self.ll, "Invalid quit packet from us {:?}", e);
+                        return;
+                    }
+                };
+                let plen = p.len() as u32;
+                let mut plen_buf = [0u8; 4];
+                plen_buf.copy_from_slice(&plen.to_be_bytes());
+                let _ = w.write_all(&plen_buf).await;
+                let _ = w.write_all(&p).await;
+
                 return;
             }
         };
 
-        trace!(self.ll, "successful handshake with {}", r.their_peer_id);
+        trace!(self.ll, "successful handshake with {}", result.their_peer_id);
 
-        let _ = self.connections.insert(r.their_peer_id, r.stream, r.their_addr).await;
+        let _ = self.connections.insert(result.their_peer_id, r, w, result.their_addr).await;
     }
 
     /// Handles a packet by executing the default associated implementation and notifying event listeners.

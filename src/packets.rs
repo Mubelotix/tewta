@@ -176,7 +176,24 @@ pub struct PingPacket {
 /// All packets sent or received after this one is potentially ignored.
 #[derive(Protocol, Debug, Clone)]
 pub struct QuitPacket {
-    pub code: String,
-    // TODO [#19]: Add message in `Quit` packet
-    // pub message: String,
+    /// Reason code (often some kind of error)
+    pub reason_code: String,
+    /// Human readable message with non-static data.
+    pub message: Option<String>,
+    /// Tell the peer that it has made an important mistake that resulted in the termination of the connection.
+    pub report_fault: bool,
+}
+
+pub trait IntoQuit: Sized {
+    fn reason_code(&self) -> &'static str;
+    fn message(&self) -> Option<String>;
+    fn report_fault(&self) -> bool;
+
+    fn into_quit(self) -> QuitPacket {
+        QuitPacket {
+            reason_code: self.reason_code().to_string(),
+            message: self.message(),
+            report_fault: self.report_fault(),
+        }
+    }
 }

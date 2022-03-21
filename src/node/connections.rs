@@ -15,8 +15,9 @@ struct PeerInfo {
     write_stream: WriteHalf,
     ping_nanos: Option<usize>,
 
-    // Todo: Hold reputation data here in the PeerInfo struct
+    // TODO: Hold reputation data here in the PeerInfo struct
 }
+
 pub(super) struct ConnectionPool {
     connections: Mutex<BTreeMap<PeerID, PeerInfo>>,
     our_peer_id: PeerID,
@@ -93,12 +94,11 @@ impl ConnectionPool {
         // We will have to add a parameter in this function
     }
 
-    pub(super) async fn insert(&self, n: PeerID, mut s: TcpStream, addr: String) -> Result<(), ()> {
+    pub(super) async fn insert(&self, n: PeerID, mut r: ReadHalf, w: WriteHalf, addr: String) -> Result<(), ()> {
         let mut connections = self.connections.lock().await;
-        let (mut read_stream, write_stream) = s.into_split();
         let peer = PeerInfo {
             addr,
-            write_stream,
+            write_stream: w,
             ping_nanos: None,
         };
         if connections.contains_key(&n) {
@@ -116,14 +116,14 @@ impl ConnectionPool {
                 // For receiving and sending
 
                 // Read packet
-                let packet_size = read_stream.read_u32().await.unwrap();
+                let packet_size = r.read_u32().await.unwrap();
                 if packet_size >= MAX_PACKET_SIZE {
                     warn!(node.upgrade().unwrap().ll, "packet size too large");
                     unimplemented!("Recovery of packet size too large");
                 }
                 let mut packet = Vec::with_capacity(packet_size as usize);
                 unsafe {packet.set_len(packet_size as usize)};
-                read_stream.read_exact(&mut packet).await.unwrap();
+                r.read_exact(&mut packet).await.unwrap();
 
                 // Parse packet
                 let packet: Packet = match Parcel::from_raw_bytes(&packet, &PROTOCOL_SETTINGS) {
@@ -285,24 +285,24 @@ impl Node {
                 }
 
                 // TODO [#30]: close connection properly
-                let s = match connect(addr).await {
-                    Some(s) => s,
+                let (mut r, mut w) = match connect(addr).await {
+                    Some(s) => s.into_split(),
                     None => continue,
                 };
-                let r = match self.handshake(s).await {
+                let result = match self.handshake(&mut r, &mut w).await {
                     Ok(r) => r,
                     Err(e) => {
                         error!(self.ll, "Handshake failed: {:?}", e);
                         return;
                     }
                 };
-                if r.their_peer_id != peer_id {
+                if result.their_peer_id != peer_id {
                     warn!(self.ll, "PeerID at this address changed");
                     continue;
                 }
-                trace!(self.ll, "Successfully discovered one peer ({})", r.their_peer_id);
+                trace!(self.ll, "Successfully discovered one peer ({})", result.their_peer_id);
                 missing_peers -= 1;
-                let _ = self.connections.insert(r.their_peer_id, r.stream, r.their_addr).await;
+                let _ = self.connections.insert(result.their_peer_id, r, w, result.their_addr).await;
             } else if let Some(provider) = providers.pop() {
                 let request_id = self.discover_peer_req_counter.next();
                 let p = Packet::DiscoverPeers(DiscoverPeersPacket {
