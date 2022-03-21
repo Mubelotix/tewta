@@ -20,15 +20,22 @@ The end goal is to achieve a fully functional distributed clone of Twitter.
 
 _* It's a non-goal for me, but *you* can PR._
 
-## Why not use libp2p?
-  
+## FAQ
+
+### Why not using libp2p?
+
 I could have used [libp2p](https://libp2p.io/) and that would have been amazing, but I decided not to for several reasons:
 - Rusty libp2p has no testing framework
-- The library lacks real-world experience and is fairly experimental
-- It's quite a big library, so it's hard to fully understand how it works
-- I want to be able to overoptimize things
-- I fear I could get blocked by missing features
-- It's a learning project after all, why would I want to use a library?
+- The library lacks real-world experience and is still solely experimental
+- I fear we could get blocked by missing features
+- Building everything from scratch allows us to optimize as much as needed
+
+### Why Kademlia?
+
+[Kademlia](https://en.wikipedia.org/wiki/Kademlia) is simple and works well.
+It is important for an open protocol to be easy to understand.  
+Note that this implementation is not compatible with other Kademlia nodes.
+The concept remains but the design has been adapted to this project.
 
 ### 
 
