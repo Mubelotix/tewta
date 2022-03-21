@@ -37,7 +37,7 @@ It is important for an open protocol to be easy to understand.
 Note that this implementation is not compatible with other Kademlia nodes.
 The concept remains but the design has been adapted to this project.
 
-### 
+## License
 
     p2pnet; distributed social network
     Copyright (C) 2022  Mubelotix <mubelotix@gmail.com>
