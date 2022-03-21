@@ -1,4 +1,4 @@
-// Copyright (c) 2022  Mubelotix <Mubelotix@gmail.com>
+// Copyright (c) 2022  Mubelotix <mubelotix@gmail.com>
 // Program licensed under GNU AGPL v3 or later. See the LICENSE file for details.
 
 use protocol::*;

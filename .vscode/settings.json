@@ -21,7 +21,7 @@
         {
             "language": "rust",
             "template": [
-                "Copyright (c) <<yeartoyear(fc, now)>>  Mubelotix <Mubelotix@gmail.com>",
+                "Copyright (c) <<yeartoyear(fc, now)>>  Mubelotix <mubelotix@gmail.com>",
                 "Program licensed under GNU AGPL v3 or later. See the LICENSE file for details."
             ]
         }
