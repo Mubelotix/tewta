@@ -385,7 +385,7 @@ impl Node {
                 }
                 self.connections.disconnect(&n).await;
 
-                // TODO: Quit event handler
+                // TODO [#44]: Quit event handler
                 // self.on_quit_packet.event((n, p)).await;
             }
 
