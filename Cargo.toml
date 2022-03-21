@@ -22,5 +22,4 @@ protocol-derive = "3.2"
 
 [features]
 test = []
-onlyfive = ["test"]
 no-rsa = []

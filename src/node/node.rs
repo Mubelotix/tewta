@@ -138,8 +138,10 @@ impl Node {
     }
 
     async fn bootstrap_peers(&self) {
-        for _ in 0..50 {    
-            let n = rand::thread_rng().gen_range(0..if cfg!(feature = "onlyfive") { 5 } else { 50 });
+        let node_count = unsafe {crate::NODE_COUNT.load(std::sync::atomic::Ordering::Relaxed)};
+
+        for _ in 0..node_count {    
+            let n = rand::thread_rng().gen_range(0..node_count);
             let addr = format!("local-{}", n);
             if let Some(s) = connect(addr).await {
                 self.on_connection(s).await;
@@ -160,6 +162,10 @@ impl Node {
             }
             Command::Buckets => {
                 self.connections.debug_buckets().await;
+            }
+            Command::RefreshBuckets => {
+                self.connections.refresh_buckets().await;
+                log::info!("Buckets refreshed");
             }
             Command::Ping { node_id } => {
                 // Send ping
@@ -367,6 +373,15 @@ impl Node {
             }
             Packet::Pong(p) => {
                 self.on_pong_packet.event((n, p)).await;
+            }
+            Packet::Quit(p) => {
+                if p.report_fault {
+                    error!(self.ll, "Peer {} quitted because of us: {}, {:?}", n, p.reason_code, p.message);
+                }
+                self.connections.disconnect(&n).await;
+
+                // TODO: Quit event handler
+                // self.on_quit_packet.event((n, p)).await;
             }
 
             _ => todo!(),

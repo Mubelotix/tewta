@@ -97,17 +97,28 @@ impl ConnectionPool {
         // We will have to add a parameter in this function
     }
 
-    pub(super) async fn insert(&self, n: PeerID, mut r: ReadHalf, w: WriteHalf, addr: String) -> Result<(), ()> {
+    pub(super) async fn insert(&self, n: PeerID, mut r: ReadHalf, mut w: WriteHalf, addr: String) -> Result<(), ()> {
         let mut connections = self.connections.lock().await;
+        if connections.contains_key(&n) {
+            let p = Packet::Quit(QuitPacket {
+                reason_code: String::from("InsertError::AlreadyConnected"),
+                message: None,
+                report_fault: false,
+            });
+            let p = p.raw_bytes(&PROTOCOL_SETTINGS).expect("Failed to serialize packet");
+            let plen = p.len() as u32;
+            let mut plen_buf = [0u8; 4];
+            plen_buf.copy_from_slice(&plen.to_be_bytes());
+            let _ = w.write_all(&plen_buf).await;
+            let _ = w.write_all(&p).await;
+
+            return Err(());
+        }
         let peer = PeerInfo {
             addr,
             write_stream: w,
             ping_nanos: None,
         };
-        if connections.contains_key(&n) {
-            error!(self.ll, "Already connected to {}", n);
-            return Err(());
-        }
         connections.insert(n.clone(), peer);
 
         let node = Weak::clone(unsafe {&*self.node_ref.get()});
@@ -305,7 +316,9 @@ impl Node {
                 }
                 trace!(self.ll, "Successfully discovered one peer ({})", result.their_peer_id);
                 missing_peers -= 1;
-                let _ = self.connections.insert(result.their_peer_id, r, w, result.their_addr).await;
+                if self.connections.insert(result.their_peer_id, r, w, result.their_addr).await.is_err() {
+                    error!(self.ll, "Failed to insert peer after discovery");
+                }
             } else if let Some(provider) = providers.pop() {
                 let request_id = self.discover_peer_req_counter.next();
                 let p = Packet::DiscoverPeers(DiscoverPeersPacket {

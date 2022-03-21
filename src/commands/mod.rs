@@ -19,6 +19,7 @@ use structopt::*;
 pub enum Command {
     Conns,
     Buckets,
+    RefreshBuckets,
     SetLogLevel {
         level: u8,
     },

@@ -24,6 +24,7 @@ pub mod util;
 pub mod logging;
 
 static mut RUNNING_COMMAND_COUNTER: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+static mut NODE_COUNT: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
 
 lazy_static::lazy_static!(
     static ref LISTENERS: Arc<Mutex<Vec<Sender<TcpStream>>>> = Arc::new(Mutex::new(Vec::new()));
@@ -105,8 +106,14 @@ async fn main() {
 async fn thousand_nodes() {
     env_logger::init();
 
+    let mut buf = String::new();
+    println!("Node count: ");
+    std::io::stdin().read_line(&mut buf).unwrap();
+    let node_count = buf.trim().parse::<usize>().unwrap();
+    unsafe {NODE_COUNT.store(node_count, std::sync::atomic::Ordering::Relaxed)};
+
     let mut command_senders = Vec::new();
-    for i in 0..if cfg!(feature="onlyfive") {5} else {50} {
+    for i in 0..node_count {
         let (command_receiver, command_sender) = CommandReceiver::new();
         command_senders.push(command_sender);
         let (connection_sender, connection_receiver) = async_channel::unbounded();

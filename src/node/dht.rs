@@ -39,6 +39,7 @@ enum SingleProviderLookupError {
     PacketTooLarge,
     UnexpectedPacket,
     RequestIdMismatch,
+    FailedToInsert,
     IoError(std::io::Error),
     ProtocolError(protocol::Error),
     HandshakeError(HandshakeError),
@@ -99,43 +100,40 @@ impl Node {
         debug!(self.ll, "Handshake with {} completed", peer_id);
 
         if peer_id != result.their_peer_id {
+            error!(self.ll, "Peer ID mismatch: {} != {}", peer_id, result.their_peer_id);
             return Err(IdentityMismatch);
         }
-
-        // TODO [#40]: AES encryption here
+        if self.connections.insert(peer_id.clone(), r, w, result.their_addr).await.is_err() {
+            return Err(FailedToInsert);
+        }
 
         // Send the lookup request
         debug!(self.ll, "Sending lookup request to {}", peer_id);
         let request_id = self.dht_req_counter.next();
-        let p = Packet::FindDhtValue(FindDhtValuePacket {
+        let resp_listerner = self.on_find_dht_value_resp_packet.listen().await;
+        self.connections.send_packet(&peer_id, Packet::FindDhtValue(FindDhtValuePacket {
             request_id,
             key: key.clone(),
             limit_peers: MAX_DHT_PEERS_RETURNED,
             limit_values: MAX_DHT_VALUES_RETURNED,
-        });
-        let p = p.raw_bytes(&PROTOCOL_SETTINGS)?;
-        let plen = p.len() as u32;
-        let mut plen_buf = [0u8; 4];
-        plen_buf.copy_from_slice(&plen.to_be_bytes());
-        w.write_all(&plen_buf).await?;
-        w.write_all(&p).await?;
+        })).await;
 
         // Receive the lookup response
         debug!(self.ll, "Waiting for response from {}", peer_id);
-        let plen = r.read_u32().await?;
-        if plen >= MAX_PACKET_SIZE {
-            return Err(PacketTooLarge);
-        }
-        let mut p = Vec::with_capacity(plen as usize);
-        unsafe {p.set_len(plen as usize)};
-        r.read_exact(&mut p).await?;
-        let p = Packet::from_raw_bytes(&p, &PROTOCOL_SETTINGS)?;
-        let p = match p {
-            Packet::FindDhtValueResp(p) => p,
-            _ => return Err(UnexpectedPacket),
+        let p = loop {
+            let (n, p) = resp_listerner.recv().await.unwrap();
+            if p.request_id == request_id && n == peer_id {
+                break p;
+            }
         };
 
-        // TODO [#41]: Send Quit packet
+        // Disconnect
+        self.connections.send_packet(&peer_id, Packet::Quit(QuitPacket {
+            reason_code: String::from("MissionAccomplished"),
+            message: None,
+            report_fault: false,
+        })).await;
+        self.connections.disconnect(&peer_id).await;
 
         if p.request_id != request_id {
             return Err(RequestIdMismatch);
@@ -145,6 +143,8 @@ impl Node {
 
     pub(super) async fn dht_lookup(&self, key: KeyID) -> Option<Vec<DhtValue>> {
         debug!(self.ll, "DHT lookup: {}", key);
+
+        let mut already_queried = BTreeSet::new();
 
         let mut providers = self.connections.peers_with_addrs().await;
         providers.sort_by_key(|(peer_id, _)| peer_id.distance(&key));
@@ -157,6 +157,10 @@ impl Node {
             debug!(self.ll, "refill");
             while concurrent_lookups.len() < KADEMLIA_ALPHA {
                 if let Some(provider) = providers.pop() {
+                    if provider.0 == key {
+                        warn!(self.ll, "DHT lookup should complete");
+                    }
+                    already_queried.insert(provider.clone());
                     concurrent_lookups.push(Box::pin(self.dht_lookup_on_single_provider(&key, provider)));
                 } else if concurrent_lookups.is_empty() {
                     warn!(self.ll, "Lookup failed, no providers");
@@ -181,6 +185,7 @@ impl Node {
                     
                     debug!(self.ll, "DHT lookup not found, but we have more {} peers", peers.len());
                     providers.extend(peers);
+                    providers.retain(|r| !already_queried.contains(r));
                     providers.sort_by_key(|(peer_id, _)| peer_id.distance(&key));
                     providers.dedup();
                     providers.reverse();

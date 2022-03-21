@@ -16,6 +16,7 @@ pub enum HandshakeError {
     PacketTooLarge,
     AlreadyConnected,
     SamePeer, // We are connecting to ourselves!
+    PeerQuitted(QuitPacket),
     ProtocolError(protocol::Error),
     RsaError(rsa::errors::Error),
     IoError(std::io::Error),
@@ -51,6 +52,7 @@ impl IntoQuit for HandshakeError {
             PacketTooLarge => "HandshakeError::PacketTooLarge",
             AlreadyConnected => "HandshakeError::AlreadyConnected",
             SamePeer => "HandshakeError::SamePeer",
+            PeerQuitted(_) => "HandshakeError::PeerQuitted",
             ProtocolError(_) => "HandshakeError::ProtocolError",
             RsaError(_) => "HandshakeError::RsaError",
             IoError(_) => "HandshakeError::IoError",
@@ -107,10 +109,8 @@ impl Node {
                     return Err(UnsupportedVersion);
                 }
             },
-            _ => {
-                error!(self.ll, "Expected a protocol version packet");
-                return Err(UnexpectedPacket);
-            }
+            Packet::Quit(p) => return Err(PeerQuitted(p)),
+            _ => return Err(UnexpectedPacket),
         }
 
         // Send our RSA public key
@@ -149,10 +149,8 @@ impl Node {
                 }
                 (RsaPublicKey::new(n, e)?, p.nonce)
             }
-            _ => {
-                error!(self.ll, "Expected an init rsa packet");
-                return Err(UnexpectedPacket);
-            }
+            Packet::Quit(p) => return Err(PeerQuitted(p)),
+            _ => return Err(UnexpectedPacket),
         };
 
         // Prevent invalid connections
@@ -206,9 +204,8 @@ impl Node {
 
                 p.aes_key_part
             },
-            _ => {
-                return Err(UnexpectedPacket);
-            }
+            Packet::Quit(p) => return Err(PeerQuitted(p)),
+            _ => return Err(UnexpectedPacket),
         };
 
         // Concatenate our and their AES key parts
@@ -253,9 +250,8 @@ impl Node {
         let p = Packet::from_raw_bytes(&p, &PROTOCOL_SETTINGS)?;
         let addr = match p {
             Packet::Ehlo(p) => p.addr,
-            _ => {
-                return Err(UnexpectedPacket);
-            }
+            Packet::Quit(p) => return Err(PeerQuitted(p)),
+            _ => return Err(UnexpectedPacket),
         };
 
         Ok(HandshakeData {
