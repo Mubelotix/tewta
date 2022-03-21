@@ -1,3 +1,6 @@
+// Copyright (c) 2022  Mubelotix <Mubelotix@gmail.com>
+// Program licensed under GNU AGPL v3 or later. See the LICENSE file for details.
+
 #![allow(clippy::uninit_vec)]
 #![allow(clippy::uninit_assumed_init)]
 

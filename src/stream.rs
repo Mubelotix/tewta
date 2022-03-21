@@ -1,3 +1,6 @@
+// Copyright (c) 2022  Mubelotix <Mubelotix@gmail.com>
+// Program licensed under GNU AGPL v3 or later. See the LICENSE file for details.
+
 use std::{sync::Arc, task::{Poll, Waker}, pin::Pin};
 use async_mutex::{Mutex, MutexGuardArc};
 use futures::{future::BoxFuture, FutureExt};

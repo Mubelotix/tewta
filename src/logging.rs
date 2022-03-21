@@ -1,3 +1,6 @@
+// Copyright (c) 2022  Mubelotix <Mubelotix@gmail.com>
+// Program licensed under GNU AGPL v3 or later. See the LICENSE file for details.
+
 #[derive(Clone)]
 pub struct LogLevel {
     value: std::sync::Arc<std::sync::atomic::AtomicU8>,
