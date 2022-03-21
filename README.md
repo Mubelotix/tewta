@@ -1,6 +1,11 @@
-# p2pnet
+<h1 align="center">p2pnet</h1>
 
-[![wakatime](https://wakatime.com/badge/user/6a4c28c6-c833-460a-815e-15ce48b15c25/project/cf07aa0b-1f3c-42ff-a3c1-67a97f3a9ffa.svg)](https://wakatime.com/badge/user/6a4c28c6-c833-460a-815e-15ce48b15c25/project/cf07aa0b-1f3c-42ff-a3c1-67a97f3a9ffa)
+<p align="center">
+    <img src="https://wakatime.com/badge/user/6a4c28c6-c833-460a-815e-15ce48b15c25/project/cf07aa0b-1f3c-42ff-a3c1-67a97f3a9ffa.svg" alt="Wakatime badge">
+    <a href="https://www.gnu.org/licenses/agpl-3.0"><img src="https://img.shields.io/badge/License-AGPL_v3-blue.svg" alt="License: GNU AGPL v3"></a>
+</p>
+
+<p align="center">Experimental peer-to-peer social network built with Rust 🦀</p>
 
 An experimental peer-to-peer network using [Kademlia](https://en.wikipedia.org/wiki/Kademlia) as its [DHT](https://en.wikipedia.org/wiki/Distributed_hash_table).
 
