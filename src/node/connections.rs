@@ -265,13 +265,25 @@ impl Node {
 
         let mut providers = self.connections.peers_on_bucket_and_under(bucket_level).await;
         let mut candidates: Vec<(PeerID, String)> = Vec::new();
+        let mut old_candidates: BTreeSet<(PeerID, String)> = BTreeSet::new();
         let mut missing_peers = KADEMLIA_BUCKET_SIZE - self.connections.peers_on_bucket(bucket_level, bucket_id).await.len();
 
         while missing_peers > 0 {
             if let Some((peer_id, addr)) = candidates.pop() {
+                // Assert we did not try that peer already
+                if old_candidates.contains(&(peer_id.clone(), addr.clone())) {
+                    continue;
+                }
+                old_candidates.insert((peer_id.clone(), addr.clone()));
+
+                // Make sure this is a valid peer suggestion
+                if self.connections.contains(&peer_id).await {
+                    continue;
+                }
                 if !peer_id.matches(&target, &mask) {
                     warn!(self.ll, "Response contains peers that do not match request");
                 }
+
                 // TODO [#30]: close connection properly
                 let s = match connect(addr).await {
                     Some(s) => s,
@@ -309,8 +321,6 @@ impl Node {
                     let (n, resp) = resp_receiver.recv().await.unwrap();
                     if resp.request_id == request_id && n == provider {
                         candidates = resp.peers;
-                        let connected_peers = self.connections.peers().await;
-                        candidates.retain(|(peer_id, _)| !connected_peers.contains(peer_id));
                         break;
                     }
                 }
