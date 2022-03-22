@@ -8,12 +8,20 @@ pub(super) struct EventListeners<T: Clone> {
 }
 
 impl<T: Clone> EventListeners<T> {
+    #[allow(clippy::collapsible_if)]
     pub(super) async fn event(&self, event: T) {
         let mut listeners = self.listeners.lock().await;
-        for i in (0..listeners.len()).rev() {
-            // TODO [#4]: check if we could optimize by avoiding cloning the last event
-            if listeners[i].send(event.clone()).await.is_err() {
-                listeners.remove(i);
+        if listeners.len() > 1 {
+            // We avoid the first element because if there is one, we can spare on clone (the last)
+            for i in (1..listeners.len()).rev() {
+                if listeners[i].send(event.clone()).await.is_err() {
+                    listeners.remove(i);
+                }
+            }
+        }
+        if !listeners.is_empty() {
+            if listeners[0].send(event.clone()).await.is_err() {
+                listeners.remove(0);
             }
         }
     }
