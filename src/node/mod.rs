@@ -13,6 +13,8 @@ mod handshake;
 pub use handshake::*;
 mod dht;
 pub use dht::*;
+mod discovery;
+pub use discovery::*;
 
 pub(self) use {
     crate::{
