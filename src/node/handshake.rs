@@ -74,7 +74,7 @@ impl Node {
     pub async fn handshake(&self, mut r: ReadHalf, mut w: WriteHalf, expected_peer_id: Option<PeerID>) -> Result<PeerID, HandshakeError> {
         use HandshakeError::*;
 
-        // TODO: Send errors to the peer
+        // TODO [$6239c9dc8c0573000abdf575]: Send errors to the peer
 
         // Send our protocol version
         trace!(self.ll, "Sending protocol version");
