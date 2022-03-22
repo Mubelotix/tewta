@@ -46,9 +46,12 @@ impl ConnectionPool {
         }
     }
 
+    fn get_node(&self) -> Option<Arc<Node>> {
+        Weak::clone(unsafe {&*self.node_ref.get()}).upgrade()
+    }
+
     pub(super) async fn send_packet(&self, peer_id: &PeerID, packet: Packet) {
-        // TODO [#26]: Remove these ugly weak upgraded refs
-        let node = Weak::clone(unsafe {&*self.node_ref.get()}).upgrade().unwrap();
+        let node = self.get_node().unwrap();
 
         let p = match packet.raw_bytes(&PROTOCOL_SETTINGS) {
             Ok(p) => p,
@@ -78,7 +81,7 @@ impl ConnectionPool {
     }
 
     pub(super) async fn set_ping(&self, n: &PeerID, ping_nanos: usize) {
-        let node = Weak::clone(unsafe {&*self.node_ref.get()}).upgrade().unwrap();
+        let node = self.get_node().unwrap();
         let mut connections = self.connections.lock().await;
         match connections.get_mut(n) {
             Some(p) => p.ping_nanos = Some(ping_nanos),
@@ -95,7 +98,7 @@ impl ConnectionPool {
         })).await;
 
         // Remove the node
-        let node = Weak::clone(unsafe {&*self.node_ref.get()}).upgrade().unwrap();
+        let node = self.get_node().unwrap();
         let mut connections = self.connections.lock().await;
         if connections.remove(n).is_none() {
             warn!(node.ll, "already disconnected {}", n);
@@ -229,7 +232,7 @@ impl ConnectionPool {
                 if peers.len() < KADEMLIA_BUCKET_SIZE {
                     trace!(self.ll, "Bucket {bucket_level} {} is missing peers ({}/{})", (['A', 'B', 'C'][bucket_id]), (peers.len()), KADEMLIA_BUCKET_SIZE);
 
-                    let node = Weak::clone(unsafe {&*self.node_ref.get()}).upgrade().unwrap();
+                    let node = self.get_node().unwrap();
                     spawn(async move {
                         node.discover_peers_in_bucket(bucket_level, bucket_id).await;
                     });
