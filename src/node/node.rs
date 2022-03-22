@@ -167,8 +167,6 @@ impl Node {
             if self.connections.len().await >= 5 {
                 break;
             }
-
-            // TODO [#6]: remove dupes
         }
     }
 
