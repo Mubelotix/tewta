@@ -17,6 +17,7 @@ struct PeerInfo {
     addr: String,
     write_stream: WriteHalf,
     ping_nanos: Option<usize>,
+    read_stream_task: tokio::task::JoinHandle<()>,
 
     // TODO [#43]: Hold reputation data here in the PeerInfo struct
 }
@@ -64,7 +65,11 @@ impl ConnectionPool {
     /// 
     /// Panics if packet is a quit packet. In that case, you should use `ConnectionPool::disconnect` instead.
     pub(super) async fn send_packet(&self, peer_id: &PeerID, p: Packet) {
-        debug_assert!(!matches!(p, Packet::Quit(_)));
+        assert!(!matches!(p, Packet::Quit(_)));
+        self.send_packet_unchecked(peer_id, p).await
+    }
+
+    async fn send_packet_unchecked(&self, peer_id: &PeerID, p: Packet) {
         let node = self.get_node().unwrap();
 
         // Serialize packet
@@ -106,19 +111,20 @@ impl ConnectionPool {
 
     pub(super) async fn disconnect(&self, n: &PeerID, quit_packet: QuitPacket) {
         // Send the quit packet
-        self.send_packet(n, Packet::Quit(quit_packet)).await;
+        self.send_packet_unchecked(n, Packet::Quit(quit_packet)).await;
 
-        // Remove the node
+        // Remove the node and stop reading packets
         let node = self.get_node().unwrap();
         let mut connections = self.connections.lock().await;
-        if connections.remove(n).is_none() {
-            warn!(node.ll, "already disconnected {}", n);
+        match connections.remove(n) {
+            Some(peer) => peer.read_stream_task.abort(),
+            None => warn!(node.ll, "already disconnected {}", n),
         }
     }
 
-    pub(super) async fn insert(&self, n: PeerID, mut r: ReadHalf, mut w: WriteHalf, addr: String) -> Result<(), ()> {
+    pub(super) async fn insert(&self, peer_id: PeerID, mut r: ReadHalf, mut w: WriteHalf, addr: String) -> Result<(), ()> {
         let mut connections = self.connections.lock().await;
-        if connections.contains_key(&n) {
+        if connections.contains_key(&peer_id) {
             let p = Packet::Quit(QuitPacket {
                 reason_code: String::from("InsertError::AlreadyConnected"),
                 message: None,
@@ -133,17 +139,11 @@ impl ConnectionPool {
 
             return Err(());
         }
-        let peer = PeerInfo {
-            addr,
-            write_stream: w,
-            ping_nanos: None,
-        };
-        connections.insert(n.clone(), peer);
-
-        let node = Weak::clone(unsafe {&*self.node_ref.get()});
 
         // Listen for messages from the remote node
-        tokio::spawn(async move {
+        let node = Weak::clone(unsafe {&*self.node_ref.get()});
+        let peer_id2 = peer_id.clone();
+        let handle = tokio::spawn(async move {
             loop {
                 // TODO [#22]: Aes encryption
                 // For receiving and sending
@@ -169,9 +169,18 @@ impl ConnectionPool {
 
                 // Handle packet
                 // Warning: This blocks the packet receiving loop.
-                node.upgrade().unwrap().on_packet(n.clone(), packet).await;
+                node.upgrade().unwrap().on_packet(peer_id2.clone(), packet).await;
             }
         });
+
+        // Insert peer
+        let peer = PeerInfo {
+            addr,
+            write_stream: w,
+            ping_nanos: None,
+            read_stream_task: handle,
+        };
+        connections.insert(peer_id.clone(), peer);
 
         Ok(())
     }
