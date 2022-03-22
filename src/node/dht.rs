@@ -128,12 +128,12 @@ impl Node {
         };
 
         // Disconnect
-        self.connections.send_packet(&peer_id, Packet::Quit(QuitPacket {
+        let quit_packet = QuitPacket {
             reason_code: String::from("MissionAccomplished"),
             message: None,
             report_fault: false,
-        })).await;
-        self.connections.disconnect(&peer_id).await;
+        };
+        self.connections.disconnect(&peer_id, quit_packet).await;
 
         if p.request_id != request_id {
             return Err(RequestIdMismatch);

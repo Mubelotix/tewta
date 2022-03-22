@@ -120,12 +120,12 @@ impl Node {
                             Ok(d) => node.connections.set_ping(peer_id, d.as_nanos() as usize).await,
                             Err(_) => {                                     
                                 warn!(node.ll, "Connection timed out, disconnecting {}", peer_id);
-                                node.connections.send_packet(peer_id, Packet::Quit(QuitPacket {
+                                let quit_packet = QuitPacket {
                                     reason_code: String::from("Timeout"),
                                     message: None,
                                     report_fault: false,
-                                })).await;
-                                node.connections.disconnect(peer_id).await;
+                                };
+                                node.connections.disconnect(peer_id, quit_packet).await;
                             },
                         }
                     });
@@ -393,7 +393,14 @@ impl Node {
                 if p.report_fault {
                     error!(self.ll, "Peer {} quitted because of us: {}, {:?}", n, p.reason_code, p.message);
                 }
-                self.connections.disconnect(&n).await;
+
+                // We shouldn't need to respond with another quit packet but anyway, requiring it in the disconnect method guarantees we never quit without sending a quit packet.
+                let quit_packet = QuitPacket {
+                    reason_code: String::from("QuitReceived"),
+                    message: None,
+                    report_fault: false
+                };
+                self.connections.disconnect(&n, quit_packet).await;
 
                 // TODO [#44]: Quit event handler
                 // self.on_quit_packet.event((n, p)).await;

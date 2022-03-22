@@ -60,10 +60,15 @@ impl ConnectionPool {
         }
     }
 
-    pub(super) async fn send_packet(&self, peer_id: &PeerID, packet: Packet) {
+    /// # Panics
+    /// 
+    /// Panics if packet is a quit packet. In that case, you should use `ConnectionPool::disconnect` instead.
+    pub(super) async fn send_packet(&self, peer_id: &PeerID, p: Packet) {
+        debug_assert!(!matches!(p, Packet::Quit(_)));
         let node = self.get_node().unwrap();
 
-        let p = match packet.raw_bytes(&PROTOCOL_SETTINGS) {
+        // Serialize packet
+        let p = match p.raw_bytes(&PROTOCOL_SETTINGS) {
             Ok(p) => p,
             Err(e) => {
                 error!(node.ll, "{:?}", e);
@@ -71,8 +76,8 @@ impl ConnectionPool {
             }
         };
 
+        // Lock peer
         let mut connections = self.connections.lock().await;
-
         let peer = match connections.get_mut(peer_id) {
             Some(s) => s,
             None => {
@@ -99,13 +104,9 @@ impl ConnectionPool {
         };
     }
 
-    pub(super) async fn disconnect(&self, n: &PeerID) {
-        // Send a generic quit (hopefully a better one has already been sent)
-        self.send_packet(n, Packet::Quit(QuitPacket {
-            reason_code: String::from("Quit confirmation"),
-            message: None,
-            report_fault: false,
-        })).await;
+    pub(super) async fn disconnect(&self, n: &PeerID, quit_packet: QuitPacket) {
+        // Send the quit packet
+        self.send_packet(n, Packet::Quit(quit_packet)).await;
 
         // Remove the node
         let node = self.get_node().unwrap();
