@@ -235,6 +235,8 @@ impl ConnectionPool {
         connections.keys().cloned().filter(|n| n.bucket(&self.our_peer_id).map(|l| l.0 <= bucket_level).unwrap_or(false)).collect()
     }
 
+    /// Refresh buckets and discovers new peers.  
+    /// This will return immediately as tasks are spawned.
     pub(super) async fn refresh_buckets(&self) {
         'higher: for bucket_level in 0..128 {
             for bucket_id in 0..3 {

@@ -21,6 +21,7 @@ pub struct Node {
     // Event listeners
     pub(super) on_ping_packet: EventListeners<(PeerID, PingPacket)>,
     pub(super) on_pong_packet: EventListeners<(PeerID, PingPacket)>,
+    pub(super) on_quit_packet: EventListeners<(PeerID, QuitPacket)>,
     pub(super) on_discover_peers_packet: EventListeners<(PeerID, DiscoverPeersPacket)>,
     pub(super) on_discover_peers_resp_packet: EventListeners<(PeerID, DiscoverPeersRespPacket)>,
     pub(super) on_find_dht_value_packet: EventListeners<(PeerID, FindDhtValuePacket)>,
@@ -56,6 +57,7 @@ impl Node {
 
             on_ping_packet: EventListeners::default(),
             on_pong_packet: EventListeners::default(),
+            on_quit_packet: EventListeners::default(),
             on_discover_peers_packet: EventListeners::default(),
             on_discover_peers_resp_packet: EventListeners::default(),
             on_find_dht_value_packet: EventListeners::default(),
@@ -402,8 +404,11 @@ impl Node {
                 };
                 self.connections.disconnect(&n, quit_packet).await;
 
-                // TODO [#44]: Quit event handler
-                // self.on_quit_packet.event((n, p)).await;
+                // TODO: Refresh buckets to fill an eventual hole after the disconnect
+                // This below does not work as the compiler has troubles with some checks
+                // self.connections.refresh_buckets().await;
+
+                self.on_quit_packet.event((n, p)).await;
             }
 
             _ => todo!(),
