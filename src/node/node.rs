@@ -404,7 +404,7 @@ impl Node {
                 };
                 self.connections.disconnect(&n, quit_packet).await;
 
-                // TODO: Refresh buckets to fill an eventual hole after the disconnect
+                // TODO [$6239bfd5d113de000ad3bf9c]: Refresh buckets to fill an eventual hole after the disconnect
                 // This below does not work as the compiler has troubles with some checks
                 // self.connections.refresh_buckets().await;
 
