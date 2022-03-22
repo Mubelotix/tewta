@@ -6,7 +6,7 @@ use super::*;
 pub struct Node {
     pub(super) connections: ConnectionPool,
     pub(super) dht: DhtStore,
-    rsa_private_key: RsaPrivateKey,
+    pub(super) rsa_private_key: RsaPrivateKey,
     pub(super) rsa_public_key: RsaPublicKey,
     pub(super) peer_id: PeerID,
     pub(super) addr: String,
