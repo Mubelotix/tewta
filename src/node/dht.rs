@@ -151,16 +151,18 @@ impl Node {
         providers.reverse();
 
         let mut concurrent_lookups = Vec::new();
+        let mut steps = 0;
+        let mut should_complete = false;
 
         loop {
             // Fill with new lookups
-            debug!(self.ll, "refill");
-            while concurrent_lookups.len() < KADEMLIA_ALPHA {
+            while concurrent_lookups.len() < KADEMLIA_ALPHA && !should_complete {
                 if let Some(provider) = providers.pop() {
                     if provider.0 == key {
-                        warn!(self.ll, "DHT lookup should complete");
+                        should_complete = true;
                     }
                     already_queried.insert(provider.clone());
+                    steps += 1;
                     concurrent_lookups.push(Box::pin(self.dht_lookup_on_single_provider(&key, provider)));
                 } else if concurrent_lookups.is_empty() {
                     warn!(self.ll, "Lookup failed, no providers");
@@ -170,13 +172,18 @@ impl Node {
                 }
             }
 
+            // Stop looking if we found the best node already
+            if concurrent_lookups.is_empty() && should_complete {
+                warn!(self.ll, "Found best node but didn't get anything from it.");
+                return None;
+            }
+
             // Wait for any lookup to finish
-            debug!(self.ll, "wait");
             let (first_result, _, other_lookups) = futures::future::select_all(concurrent_lookups).await;
             concurrent_lookups = other_lookups;
             match first_result {
                 Ok(DhtLookupResult::Found(values)) => {
-                    debug!(self.ll, "DHT lookup found {} values", values.len());
+                    debug!(self.ll, "DHT lookup found {} values in {steps} steps.", values.len());
                     return Some(values);
                 }
                 Ok(DhtLookupResult::NotFound(peers)) => {
