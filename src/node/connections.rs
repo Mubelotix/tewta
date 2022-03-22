@@ -329,26 +329,19 @@ impl Node {
                 }
 
                 // TODO [#30]: close connection properly
-                let (mut r, mut w) = match connect(addr).await {
+                let (r, w) = match connect(addr).await {
                     Some(s) => s.into_split(),
                     None => continue,
                 };
-                let result = match self.handshake(&mut r, &mut w).await {
+                let peer_id = match self.handshake(r, w, Some(peer_id)).await {
                     Ok(r) => r,
                     Err(e) => {
                         error!(self.ll, "Handshake failed: {:?}", e);
                         return;
                     }
                 };
-                if result.their_peer_id != peer_id {
-                    warn!(self.ll, "PeerID at this address changed");
-                    continue;
-                }
-                trace!(self.ll, "Successfully discovered one peer ({})", result.their_peer_id);
+                trace!(self.ll, "Successfully discovered one peer ({})", peer_id);
                 missing_peers -= 1;
-                if self.connections.insert(result.their_peer_id, r, w, result.their_addr).await.is_err() {
-                    error!(self.ll, "Failed to insert peer after discovery");
-                }
             } else if let Some(provider) = providers.pop() {
                 let request_id = self.discover_peer_req_counter.next();
                 let p = Packet::DiscoverPeers(DiscoverPeersPacket {

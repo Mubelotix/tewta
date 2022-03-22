@@ -96,17 +96,9 @@ impl Node {
 
         let (mut r, mut w) = connect(addr).await.ok_or(FailedToConnect)?.into_split();
         debug!(self.ll, "Connected to {}", peer_id);
-        let result = self.handshake(&mut r, &mut w).await.map_err(HandshakeError)?;
+        let peer_id = self.handshake(r, w, Some(peer_id)).await.map_err(HandshakeError)?;
         debug!(self.ll, "Handshake with {} completed", peer_id);
-
-        if peer_id != result.their_peer_id {
-            error!(self.ll, "Peer ID mismatch: {} != {}", peer_id, result.their_peer_id);
-            return Err(IdentityMismatch);
-        }
-        if self.connections.insert(peer_id.clone(), r, w, result.their_addr).await.is_err() {
-            return Err(FailedToInsert);
-        }
-
+        
         // Send the lookup request
         debug!(self.ll, "Sending lookup request to {}", peer_id);
         let request_id = self.dht_req_counter.next();

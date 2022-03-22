@@ -224,56 +224,20 @@ impl Node {
     pub async fn on_connection(&self, s: TcpStream) {
         trace!(self.ll, "New connection");
         
-        let (mut r, mut w) = s.into_split();
-        let result = match timeout(Duration::from_secs(40), self.handshake(&mut r, &mut w)).await {
+        let (r, w) = s.into_split();
+        let peer_id = match timeout(Duration::from_secs(40), self.handshake(r, w, None)).await {
             Ok(Ok(result)) => result,
             Ok(Err(e)) => {
                 warn!(self.ll, "Handshake failed: {:?}", e);
-
-                // Send quit packet
-                let p = match Packet::Quit(e.into_quit()).raw_bytes(&PROTOCOL_SETTINGS) {
-                    Ok(p) => p,
-                    Err(e) => {
-                        error!(self.ll, "Invalid quit packet from us {:?}", e);
-                        return;
-                    }
-                };
-                let plen = p.len() as u32;
-                let mut plen_buf = [0u8; 4];
-                plen_buf.copy_from_slice(&plen.to_be_bytes());
-                let _ = w.write_all(&plen_buf).await;
-                let _ = w.write_all(&p).await;
-
                 return;
             }
             Err(_) => {
                 warn!(self.ll, "Handshake timed out");
-
-                // Send quit packet
-                let p = match Packet::Quit(QuitPacket {
-                    reason_code: String::from("HandshakeError::Timeout"),
-                    message: None,
-                    report_fault: false,
-                }).raw_bytes(&PROTOCOL_SETTINGS) {
-                    Ok(p) => p,
-                    Err(e) => {
-                        error!(self.ll, "Invalid quit packet from us {:?}", e);
-                        return;
-                    }
-                };
-                let plen = p.len() as u32;
-                let mut plen_buf = [0u8; 4];
-                plen_buf.copy_from_slice(&plen.to_be_bytes());
-                let _ = w.write_all(&plen_buf).await;
-                let _ = w.write_all(&p).await;
-
                 return;
             }
         };
 
-        trace!(self.ll, "successful handshake with {}", result.their_peer_id);
-
-        let _ = self.connections.insert(result.their_peer_id, r, w, result.their_addr).await;
+        trace!(self.ll, "successful handshake with {}", peer_id);
     }
 
     /// Handles a packet by executing the default associated implementation and notifying event listeners.

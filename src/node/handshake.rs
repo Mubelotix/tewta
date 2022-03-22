@@ -16,6 +16,7 @@ pub enum HandshakeError {
     PacketTooLarge,
     AlreadyConnected,
     SamePeer, // We are connecting to ourselves!
+    IdentityMismatch,
     PeerQuitted(QuitPacket),
     ProtocolError(protocol::Error),
     RsaError(rsa::errors::Error),
@@ -52,6 +53,7 @@ impl IntoQuit for HandshakeError {
             PacketTooLarge => "HandshakeError::PacketTooLarge",
             AlreadyConnected => "HandshakeError::AlreadyConnected",
             SamePeer => "HandshakeError::SamePeer",
+            IdentityMismatch => "HandshakeError::IdentityMismatch",
             PeerQuitted(_) => "HandshakeError::PeerQuitted",
             ProtocolError(_) => "HandshakeError::ProtocolError",
             RsaError(_) => "HandshakeError::RsaError",
@@ -67,16 +69,12 @@ impl IntoQuit for HandshakeError {
     }
 }
 
-pub struct HandshakeData {
-    pub their_public_key: RsaPublicKey,
-    pub their_peer_id: PeerID,
-    pub aes_key: AesKey<aes_gcm::aead::generic_array::typenum::U32>,
-    pub their_addr: String,
-}
-
 impl Node {
-    pub async fn handshake(&self, r: &mut ReadHalf, w: &mut WriteHalf) -> Result<HandshakeData, HandshakeError> {
+    /// Initialize a connection and insert that connection directly
+    pub async fn handshake(&self, mut r: ReadHalf, mut w: WriteHalf, expected_peer_id: Option<PeerID>) -> Result<PeerID, HandshakeError> {
         use HandshakeError::*;
+
+        // TODO: Send errors to the peer
 
         // Send our protocol version
         trace!(self.ll, "Sending protocol version");
@@ -158,6 +156,11 @@ impl Node {
         if self.peer_id == their_peer_id {
             return Err(SamePeer);
         }
+        if let Some(expected_peer_id) = expected_peer_id {
+            if expected_peer_id != their_peer_id {
+                return Err(IdentityMismatch);
+            }
+        }
         if self.connections.contains(&their_peer_id).await {
             return Err(AlreadyConnected);
         }
@@ -222,7 +225,7 @@ impl Node {
                 return Err(SamePeer);
             },
         };
-        let aes_key = AesKey::clone_from_slice(&aes_key);
+        let aes_key: AesKey<aes_gcm::aead::generic_array::typenum::U32> = AesKey::clone_from_slice(&aes_key);
 
         // TODO [#27]: Encrypt with AES the next packets
 
@@ -254,11 +257,7 @@ impl Node {
             _ => return Err(UnexpectedPacket),
         };
 
-        Ok(HandshakeData {
-            their_public_key,
-            their_peer_id,
-            aes_key,
-            their_addr: addr,
-        })
+        self.connections.insert(their_peer_id.clone(), r, w, addr).await.map_err(|_| AlreadyConnected)?;
+        Ok(their_peer_id)
     }
 }
