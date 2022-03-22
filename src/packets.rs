@@ -187,12 +187,12 @@ pub struct QuitPacket {
     pub report_fault: bool,
 }
 
-pub trait IntoQuit: Sized {
+pub trait ToQuit: Sized {
     fn reason_code(&self) -> &'static str;
     fn message(&self) -> Option<String>;
     fn report_fault(&self) -> bool;
 
-    fn into_quit(self) -> QuitPacket {
+    fn to_quit(&self) -> QuitPacket {
         QuitPacket {
             reason_code: self.reason_code().to_string(),
             message: self.message(),

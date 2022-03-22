@@ -42,7 +42,7 @@ impl From<rsa::errors::Error> for HandshakeError {
     }
 }
 
-impl IntoQuit for HandshakeError {
+impl ToQuit for HandshakeError {
     fn reason_code(&self) -> &'static str {
         match self {
             UnsupportedVersion => "HandshakeError::UnsupportedVersion",
@@ -72,9 +72,28 @@ impl IntoQuit for HandshakeError {
 impl Node {
     /// Initialize a connection and insert that connection directly
     pub async fn handshake(&self, mut r: ReadHalf, mut w: WriteHalf, expected_peer_id: Option<PeerID>) -> Result<PeerID, HandshakeError> {
-        use HandshakeError::*;
+        match self.handshake_raw(&mut r, &mut w, expected_peer_id).await {
+            Ok((peer_id, addr)) => {
+                self.connections.insert(peer_id.clone(), r, w, addr).await.map_err(|_| AlreadyConnected)?;
+                Ok(peer_id)
+            },
+            Err(e) => {
+                // Sent quit packet
+                let p = Packet::Quit(e.to_quit());
+                let p = p.raw_bytes(&PROTOCOL_SETTINGS)?;
+                let plen = p.len() as u32;
+                let mut plen_buf = [0u8; 4];
+                plen_buf.copy_from_slice(&plen.to_be_bytes());
+                w.write_all(&plen_buf).await?;
+                w.write_all(&p).await?;
 
-        // TODO: Send errors to the peer
+                Err(e)
+            },
+        }
+    }
+
+    async fn handshake_raw(&self, r: &mut ReadHalf, w: &mut WriteHalf, expected_peer_id: Option<PeerID>) -> Result<(PeerID, String), HandshakeError> {
+        use HandshakeError::*;
 
         // Send our protocol version
         trace!(self.ll, "Sending protocol version");
@@ -257,7 +276,6 @@ impl Node {
             _ => return Err(UnexpectedPacket),
         };
 
-        self.connections.insert(their_peer_id.clone(), r, w, addr).await.map_err(|_| AlreadyConnected)?;
-        Ok(their_peer_id)
+        Ok((their_peer_id, addr))
     }
 }
