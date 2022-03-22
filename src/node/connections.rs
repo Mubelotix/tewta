@@ -40,14 +40,24 @@ impl ConnectionPool {
         }
     }
 
-    pub(super) fn set_node_ref(&self, node_ref: Weak<Node>) {
-        unsafe {
-            *self.node_ref.get() = node_ref;
-        }
+    /// # Safety
+    /// 
+    /// This method MUST be called right after the pool creation.
+    /// This method must be called exactly once.
+    /// No other reference to this pool should be held when calling this method.
+    pub(super) unsafe fn set_node_ref(&self, node_ref: Weak<Node>) {
+        *self.node_ref.get() = node_ref;
     }
 
     fn get_node(&self) -> Option<Arc<Node>> {
-        Weak::clone(unsafe {&*self.node_ref.get()}).upgrade()
+        // JUSTIFICATION
+        //  Benefit
+        //      We have to use UnsafeCell in order to have a reference to our parent struct.
+        //  Soundness
+        //      set_node_ref shall never be called more than once, so node_ref can now be considered immutable.
+        unsafe {
+            Weak::clone(&*self.node_ref.get()).upgrade()
+        }
     }
 
     pub(super) async fn send_packet(&self, peer_id: &PeerID, packet: Packet) {

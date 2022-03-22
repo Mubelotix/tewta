@@ -65,7 +65,17 @@ impl Node {
             on_store_dht_value_packet: EventListeners::default(),
         });
 
-        node.connections.set_node_ref(Arc::downgrade(&node));
+        // JUSTIFICATION
+        //  Benefit
+        //      We have to use this method in order to give the pool a reference to ourselves.
+        //  Soundness
+        //      We follow all the method's safety requirements:
+        //      - This is called only once,
+        //      - This is called right after we create the node,
+        //      - This is called as there are no other references to the node
+        unsafe {
+            node.connections.set_node_ref(Arc::downgrade(&node));
+        }
 
         let node2 = Arc::clone(&node);
         spawn(async move {
