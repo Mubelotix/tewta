@@ -23,3 +23,8 @@ protocol-derive = "3.2"
 [features]
 test = []
 no-rsa = []
+
+[[bin]]
+name = "simulation"
+path = "tests/simulation.rs"
+required-features = ["test"]
