@@ -28,7 +28,7 @@ _Note that all these behavior choices are specific to this particular implementa
 
 Content on p2pnet is censorship-resistant and cannot be moderated.
 However, as said above, users **only** see content from people they trust, and from people trusted by the people they directly trust.
-Thus thanks to the high control on content sources, malicious users and unwanted content will not reach users.
+Thus thanks to the high control on content sources, unwanted content will not reach users.
 
 ## Non-goals
 
