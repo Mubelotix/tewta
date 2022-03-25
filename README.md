@@ -26,9 +26,9 @@ _Note that all these behavior choices are specific to this particular implementa
 
 ## Moderation
 
-Content on p2pnet is censorship-resistant, and cannot be moderated.
+Content on p2pnet is censorship-resistant and cannot be moderated.
 However, as said above, users **only** see content from people they trust, and from people trusted by the people they directly trust.
-Thus, thanks to the great control on content sources, malicious users and bad content will not reach users that wish to stay away.
+Thus thanks to the high control on content sources, malicious users and unwanted content will not reach users.
 
 ## Non-goals
 
@@ -43,7 +43,7 @@ _* It's a non-goal for me, but *you* can PR._
 
 ### Why not use libp2p?
 
-I could have used [libp2p](https://libp2p.io/) and that would have been amazing, but I decided not to for several reasons:
+I could have used [libp2p](https://libp2p.io/), and that would have been amazing, but I decided not to for several reasons:
 - Rusty libp2p has no testing framework
 - The library lacks real-world experience and is still solely experimental
 - I fear we could get blocked by missing features
@@ -52,9 +52,9 @@ I could have used [libp2p](https://libp2p.io/) and that would have been amazing,
 ### Why use Kademlia?
 
 [Kademlia](https://en.wikipedia.org/wiki/Kademlia) is simple and works well.
-It is important for an open protocol to be easy to understand.  
+An open protocol needs to be easy to understand.  
 Note that this implementation is not compatible with other Kademlia nodes.
-The concept remains but the design has been adapted to this project.
+The concept remains, but the design has been adapted to this project.
 
 ## License
 
