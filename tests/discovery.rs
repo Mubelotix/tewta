@@ -5,7 +5,7 @@ mod common;
 use crate::common::*;
 use p2pnet::{commands::*, RUNNING_COMMAND_COUNTER};
 
-#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+#[tokio::test]
 async fn test_discovery() {
     #[cfg(not(feature = "test"))]
     compile_error!("Test feature required");
