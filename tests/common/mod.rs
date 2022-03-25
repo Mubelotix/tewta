@@ -6,6 +6,11 @@ use async_channel::{Receiver, Sender};
 #[allow(unused_imports)]
 use p2pnet::{stream::*, commands::*, node::*, packets::*, peers::*, util::*, logging::*, *};
 
+pub use {
+    tokio::time::sleep,
+    std::time::Duration,
+};
+
 pub async fn run_node(addr: String, conn_receiver: Receiver<TcpStream>, command_receiver: CommandReceiver, print_command_input: bool) -> Arc<Node> {
     let node = Node::new(addr).await;
 

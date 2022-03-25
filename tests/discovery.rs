@@ -3,7 +3,6 @@
 
 mod common;
 use crate::common::*;
-use p2pnet::{commands::*, RUNNING_COMMAND_COUNTER};
 
 #[tokio::test]
 async fn test_discovery() {
@@ -13,7 +12,7 @@ async fn test_discovery() {
     let nodes = launch_network(50, false).await.1;
 
     // Wait for network to boot
-    tokio::time::sleep(std::time::Duration::from_secs(10)).await;
+    sleep(Duration::from_secs(5)).await;
 
     // Update buckets
     for node in &nodes {
@@ -21,7 +20,7 @@ async fn test_discovery() {
     }
 
     // Wait for buckets to update
-    tokio::time::sleep(std::time::Duration::from_secs(10)).await;
+    sleep(Duration::from_secs(5)).await;
 
     // TODO: Add a few assertions in the discovery test
 }
