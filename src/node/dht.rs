@@ -5,7 +5,7 @@ pub use super::*;
 
 #[derive(Debug, Clone, protocol_derive::Protocol)]
 pub struct DhtValue {
-    pub(super) data: String,
+    pub data: String,
 }
 
 #[derive(Default)]
@@ -14,7 +14,7 @@ pub struct DhtStore {
 }
 
 impl DhtStore {
-    pub(super) async fn get(&self, key: &KeyID) -> Option<Vec<DhtValue>> {
+    pub async fn get(&self, key: &KeyID) -> Option<Vec<DhtValue>> {
         let mut table = self.table.lock().await;
         let values = table.get(key);
         if let Some(values) = values {
@@ -26,7 +26,7 @@ impl DhtStore {
         values.cloned()
     }
 
-    pub(super) async fn set(&self, key: KeyID, value: DhtValue) {
+    pub async fn set(&self, key: KeyID, value: DhtValue) {
         let mut table = self.table.lock().await;
         table.entry(key).or_insert_with(Vec::new).push(value);
     }
@@ -133,7 +133,7 @@ impl Node {
         Ok(p.result)
     }
 
-    pub(super) async fn dht_lookup(&self, key: KeyID) -> Option<Vec<DhtValue>> {
+    pub async fn dht_lookup(&self, key: KeyID) -> Option<Vec<DhtValue>> {
         debug!(self.ll, "DHT lookup: {}", key);
 
         let mut already_queried = BTreeSet::new();

@@ -194,7 +194,7 @@ impl Node {
             nonce: their_nonce,
         });
         let p = p.raw_bytes(&PROTOCOL_SETTINGS)?;
-        #[cfg(not(feature = "no-rsa"))]
+        #[cfg(not(feature = "no-encryption"))]
         let p = their_public_key.encrypt(&mut OsRng, PaddingScheme::new_oaep::<sha2::Sha256>(), &p)?;
         let plen = p.len() as u32;
         let mut plen_buf = [0u8; 4];
@@ -211,7 +211,8 @@ impl Node {
         let mut p = Vec::with_capacity(plen as usize);
         unsafe {p.set_len(plen as usize)};
         r.read_exact(&mut p).await?;
-        #[cfg(not(feature = "no-rsa"))]
+        // TODO: Check it is not a quit packet before decrypting
+        #[cfg(not(feature = "no-encryption"))]
         let p = self.rsa_private_key.decrypt(PaddingScheme::new_oaep::<sha2::Sha256>(), &p)?;
         let p = Packet::from_raw_bytes(&p, &PROTOCOL_SETTINGS)?;
         let mut their_aes_key_part = match p {

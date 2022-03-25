@@ -3,13 +3,13 @@
 
 use super::*;
 
-pub(super) struct EventListeners<T: Clone> {
+pub struct EventListeners<T: Clone> {
     listeners: Mutex<Vec<Sender<T>>>,
 }
 
 impl<T: Clone> EventListeners<T> {
     #[allow(clippy::collapsible_if)]
-    pub(super) async fn event(&self, event: T) {
+    pub async fn event(&self, event: T) {
         let mut listeners = self.listeners.lock().await;
         if listeners.len() > 1 {
             // We avoid the first element because if there is one, we can spare on clone (the last)

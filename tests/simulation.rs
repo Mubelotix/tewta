@@ -12,7 +12,7 @@ async fn main() {
     println!("Node count: ");
     std::io::stdin().read_line(&mut buf).unwrap();
     let node_count = buf.trim().parse::<usize>().unwrap();
-    let command_senders = launch_network(node_count, true).await;
+    let command_senders = launch_network(node_count, true).await.0;
 
     print!("\x1b[32m>>> \x1b[0m");
     loop {

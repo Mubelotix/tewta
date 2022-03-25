@@ -4,7 +4,7 @@
 use super::*;
 
 impl Node {
-    pub(super) async fn discover_peers_in_bucket(&self, bucket_level: usize, bucket_id: usize) {
+    pub async fn discover_peers_in_bucket(&self, bucket_level: usize, bucket_id: usize) {
         assert!(bucket_level < 128 && bucket_id < 3);
 
         let target = self.peer_id.generate_in_bucket(bucket_level, bucket_id);

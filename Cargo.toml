@@ -22,7 +22,7 @@ protocol-derive = "3.2"
 
 [features]
 test = []
-no-rsa = []
+no-encryption = []
 
 [[bin]]
 name = "simulation"

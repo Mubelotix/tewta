@@ -22,7 +22,7 @@ struct PeerInfo {
     // TODO [#43]: Hold reputation data here in the PeerInfo struct
 }
 
-pub(super) struct ConnectionPool {
+pub struct ConnectionPool {
     connections: Mutex<BTreeMap<PeerID, PeerInfo>>,
     our_peer_id: PeerID,
     ll: LogLevel,
@@ -46,7 +46,7 @@ impl ConnectionPool {
     /// This method MUST be called right after the pool creation.
     /// This method must be called exactly once.
     /// No other reference to this pool should be held when calling this method.
-    pub(super) unsafe fn set_node_ref(&self, node_ref: Weak<Node>) {
+    pub unsafe fn set_node_ref(&self, node_ref: Weak<Node>) {
         *self.node_ref.get() = node_ref;
     }
 
@@ -64,7 +64,7 @@ impl ConnectionPool {
     /// # Panics
     /// 
     /// Panics if packet is a quit packet. In that case, you should use `ConnectionPool::disconnect` instead.
-    pub(super) async fn send_packet(&self, peer_id: &PeerID, p: Packet) {
+    pub async fn send_packet(&self, peer_id: &PeerID, p: Packet) {
         assert!(!matches!(p, Packet::Quit(_)));
         self.send_packet_unchecked(peer_id, p).await
     }
@@ -100,7 +100,7 @@ impl ConnectionPool {
         trace!(node.ll, "packet written to {}: {:?}", peer_id, p);
     }
 
-    pub(super) async fn set_ping(&self, n: &PeerID, ping_nanos: usize) {
+    pub async fn set_ping(&self, n: &PeerID, ping_nanos: usize) {
         let node = self.get_node().unwrap();
         let mut connections = self.connections.lock().await;
         match connections.get_mut(n) {
@@ -109,7 +109,7 @@ impl ConnectionPool {
         };
     }
 
-    pub(super) async fn disconnect(&self, n: &PeerID, quit_packet: QuitPacket) {
+    pub async fn disconnect(&self, n: &PeerID, quit_packet: QuitPacket) {
         // Send the quit packet
         self.send_packet_unchecked(n, Packet::Quit(quit_packet)).await;
 
@@ -122,7 +122,7 @@ impl ConnectionPool {
         }
     }
 
-    pub(super) async fn insert(&self, peer_id: PeerID, mut r: ReadHalf, mut w: WriteHalf, addr: String) -> Result<(), ()> {
+    pub async fn insert(&self, peer_id: PeerID, mut r: ReadHalf, mut w: WriteHalf, addr: String) -> Result<(), ()> {
         let mut connections = self.connections.lock().await;
         if connections.contains_key(&peer_id) {
             let p = Packet::Quit(QuitPacket {
@@ -185,12 +185,12 @@ impl ConnectionPool {
         Ok(())
     }
 
-    pub(super) async fn len(&self) -> usize {
+    pub async fn len(&self) -> usize {
         let connections = self.connections.lock().await;
         connections.len()
     }
 
-    pub(super) async fn prepare_discover_peers_response(&self, n: &PeerID, p: DiscoverPeersPacket) -> DiscoverPeersRespPacket {
+    pub async fn prepare_discover_peers_response(&self, n: &PeerID, p: DiscoverPeersPacket) -> DiscoverPeersRespPacket {
         let connections = self.connections.lock().await;
         let mut peers = Vec::new();
         for (peer_id, peer) in connections.iter() {
@@ -219,34 +219,34 @@ impl ConnectionPool {
     }
 
     /// Returns a list of all connected node IDs
-    pub(super) async fn peers(&self) -> Vec<PeerID> {
+    pub async fn peers(&self) -> Vec<PeerID> {
         let connections = self.connections.lock().await;
         connections.keys().cloned().collect()
     }
 
-    pub(super) async fn peers_with_addrs(&self) -> Vec<(PeerID, String)> {
+    pub async fn peers_with_addrs(&self) -> Vec<(PeerID, String)> {
         let connections = self.connections.lock().await;
         connections.iter().map(|(n, p)| (n.clone(), p.addr.clone())).collect()
     }
 
-    pub(super) async fn contains(&self, peer_id: &PeerID) -> bool {
+    pub async fn contains(&self, peer_id: &PeerID) -> bool {
         let connections = self.connections.lock().await;
         connections.contains_key(peer_id)
     }
 
-    pub(super) async fn peers_on_bucket(&self, bucket_level: usize, bucket_id: usize) -> Vec<PeerID> {
+    pub async fn peers_on_bucket(&self, bucket_level: usize, bucket_id: usize) -> Vec<PeerID> {
         let connections = self.connections.lock().await;
         connections.keys().cloned().filter(|n| n.bucket(&self.our_peer_id).map(|l| l == (bucket_level, bucket_id)).unwrap_or(false)).collect()
     }
 
-    pub(super) async fn peers_on_bucket_and_under(&self, bucket_level: usize) -> Vec<PeerID> {
+    pub async fn peers_on_bucket_and_under(&self, bucket_level: usize) -> Vec<PeerID> {
         let connections = self.connections.lock().await;
         connections.keys().cloned().filter(|n| n.bucket(&self.our_peer_id).map(|l| l.0 <= bucket_level).unwrap_or(false)).collect()
     }
 
     /// Refresh buckets and discovers new peers.  
     /// This will return immediately as tasks are spawned.
-    pub(super) async fn refresh_buckets(&self) {
+    pub async fn refresh_buckets(&self) {
         'higher: for bucket_level in 0..128 {
             for bucket_id in 0..3 {
                 let peers = self.peers_on_bucket(bucket_level, bucket_id).await;
@@ -271,7 +271,7 @@ impl ConnectionPool {
         }
     }
 
-    pub(super) async fn debug_buckets(&self) {
+    pub async fn debug_buckets(&self) {
         let mut message = String::from("Buckets:\n");
         for bucket_level in 0..128 {
             for bucket_id in 0..3 {

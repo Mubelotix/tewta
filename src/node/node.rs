@@ -4,31 +4,31 @@
 use super::*;
 
 pub struct Node {
-    pub(super) connections: ConnectionPool,
-    pub(super) dht: DhtStore,
-    pub(super) rsa_private_key: RsaPrivateKey,
-    pub(super) rsa_public_key: RsaPublicKey,
-    pub(super) peer_id: PeerID,
-    pub(super) addr: String,
+    pub connections: ConnectionPool,
+    pub dht: DhtStore,
+    pub rsa_private_key: RsaPrivateKey,
+    pub rsa_public_key: RsaPublicKey,
+    pub peer_id: PeerID,
+    pub addr: String,
 
-    pub(super) ll: LogLevel,
+    pub ll: LogLevel,
 
     // Counters
-    pub(super) ping_id_counter: Counter,
-    pub(super) discover_peer_req_counter: Counter,
-    pub(super) dht_req_counter: Counter,
+    pub ping_id_counter: Counter,
+    pub discover_peer_req_counter: Counter,
+    pub dht_req_counter: Counter,
 
     // Event listeners
-    pub(super) on_ping_packet: EventListeners<(PeerID, PingPacket)>,
-    pub(super) on_pong_packet: EventListeners<(PeerID, PingPacket)>,
-    pub(super) on_quit_packet: EventListeners<(PeerID, QuitPacket)>,
-    pub(super) on_discover_peers_packet: EventListeners<(PeerID, DiscoverPeersPacket)>,
-    pub(super) on_discover_peers_resp_packet: EventListeners<(PeerID, DiscoverPeersRespPacket)>,
-    pub(super) on_find_dht_value_packet: EventListeners<(PeerID, FindDhtValuePacket)>,
-    pub(super) on_find_dht_value_resp_packet: EventListeners<(PeerID, FindDhtValueRespPacket)>,
-    pub(super) on_find_peer_packet: EventListeners<(PeerID, FindPeerPacket)>,
-    pub(super) on_find_peer_resp_packet: EventListeners<(PeerID, FindPeerRespPacket)>,
-    pub(super) on_store_dht_value_packet: EventListeners<(PeerID, StoreDhtValuePacket)>,
+    pub on_ping_packet: EventListeners<(PeerID, PingPacket)>,
+    pub on_pong_packet: EventListeners<(PeerID, PingPacket)>,
+    pub on_quit_packet: EventListeners<(PeerID, QuitPacket)>,
+    pub on_discover_peers_packet: EventListeners<(PeerID, DiscoverPeersPacket)>,
+    pub on_discover_peers_resp_packet: EventListeners<(PeerID, DiscoverPeersRespPacket)>,
+    pub on_find_dht_value_packet: EventListeners<(PeerID, FindDhtValuePacket)>,
+    pub on_find_dht_value_resp_packet: EventListeners<(PeerID, FindDhtValueRespPacket)>,
+    pub on_find_peer_packet: EventListeners<(PeerID, FindPeerPacket)>,
+    pub on_find_peer_resp_packet: EventListeners<(PeerID, FindPeerRespPacket)>,
+    pub on_store_dht_value_packet: EventListeners<(PeerID, StoreDhtValuePacket)>,
 }
 
 impl Node {
