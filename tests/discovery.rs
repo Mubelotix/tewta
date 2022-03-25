@@ -23,5 +23,5 @@ async fn test_discovery() {
     // Wait for buckets to update
     tokio::time::sleep(std::time::Duration::from_secs(10)).await;
 
-    // TODO: Add a few assertions in the discovery test
+    // TODO [$623d8fbfaf2c900009e347f0]: Add a few assertions in the discovery test
 }
