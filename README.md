@@ -15,6 +15,21 @@ An experimental peer-to-peer network using [Kademlia](https://en.wikipedia.org/w
 
 The end goal is to achieve a fully functional distributed clone of Twitter.
 
+## Design
+
+P2pnet is like a traditional social network, except user profiles are not stored on a centralized server (nor on federated servers).
+Instead, each user distributes his own profile and helps distribute the profile of his friends.
+Thus, following someone does not only mean subscribing to their actions but also means that you publicly support their content and participate in its broadcasting.  
+As on Twitter, users will see content from people they follow, content their friends like, reply and share.
+
+_Note that all these behavior choices are specific to this particular implementation, and the network could very well have clients acting differently._
+
+## Moderation
+
+Content on p2pnet is censorship-resistant, and cannot be moderated.
+However, as said above, users **only** see content from people they trust, and from people trusted by the people they directly trust.
+Thus, thanks to the great control on content sources, malicious users and bad content will not reach users that wish to stay away.
+
 ## Non-goals
 
 - Care about NAT traversal. Users gotta have to fix their shitty network settings.*
@@ -26,7 +41,7 @@ _* It's a non-goal for me, but *you* can PR._
 
 ## FAQ
 
-### Why not using libp2p?
+### Why not use libp2p?
 
 I could have used [libp2p](https://libp2p.io/) and that would have been amazing, but I decided not to for several reasons:
 - Rusty libp2p has no testing framework
@@ -34,7 +49,7 @@ I could have used [libp2p](https://libp2p.io/) and that would have been amazing,
 - I fear we could get blocked by missing features
 - Building everything from scratch allows us to optimize as much as needed
 
-### Why Kademlia?
+### Why use Kademlia?
 
 [Kademlia](https://en.wikipedia.org/wiki/Kademlia) is simple and works well.
 It is important for an open protocol to be easy to understand.  
@@ -42,6 +57,11 @@ Note that this implementation is not compatible with other Kademlia nodes.
 The concept remains but the design has been adapted to this project.
 
 ## License
+
+The following license applies to this software.  
+
+_Note: As for the network protocol, it is not restricted in any way.
+It can be implemented by anyone without restrictions, as long as if they copy code from this project they comply with the following license._
 
     p2pnet; distributed social network
     Copyright (C) 2022  Mubelotix <mubelotix@gmail.com>
