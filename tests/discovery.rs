@@ -22,5 +22,5 @@ async fn test_discovery() {
     // Wait for buckets to update
     sleep(Duration::from_secs(5)).await;
 
-    // TODO: Add a few assertions in the discovery test
+    // TODO [#50]: Add a few assertions in the discovery test
 }

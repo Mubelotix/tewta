@@ -211,7 +211,7 @@ impl Node {
         let mut p = Vec::with_capacity(plen as usize);
         unsafe {p.set_len(plen as usize)};
         r.read_exact(&mut p).await?;
-        // TODO: Check it is not a quit packet before decrypting
+        // TODO [#48]: Check it is not a quit packet before decrypting
         #[cfg(not(feature = "no-encryption"))]
         let p = self.rsa_private_key.decrypt(PaddingScheme::new_oaep::<sha2::Sha256>(), &p)?;
         let p = Packet::from_raw_bytes(&p, &PROTOCOL_SETTINGS)?;
