@@ -36,7 +36,7 @@ pub async fn run_node(addr: String, conn_receiver: Receiver<TcpStream>, command_
     node
 }
 
-/// TODO [$623d8fbfaf2c900009e347ef]: Manage command senders somewhere else as only the simulation needs it
+/// TODO [#49]: Manage command senders somewhere else as only the simulation needs it
 
 pub async fn launch_network(node_count: usize, print_command_input: bool) -> (Vec<Sender<Command>>, Vec<Arc<Node>>) {
     env_logger::init();
