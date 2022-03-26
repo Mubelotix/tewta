@@ -15,7 +15,7 @@ pub struct SignedData<T: Parcel> {
 }
 
 impl<T: Parcel> SignedData<T> {
-    fn verify(&self) -> PeerID {
+    pub fn verify(&self) -> PeerID {
         let n = rsa::BigUint::from_bytes_le(&self.rsa_public_key_modulus);
         let e = rsa::BigUint::from_bytes_le(&self.rsa_public_key_exponent);
         let rsa_public_key = RsaPublicKey::new(n, e).unwrap();
@@ -27,7 +27,7 @@ impl<T: Parcel> SignedData<T> {
         PeerID::from(&rsa_public_key)
     }
 
-    fn into_verified(self) -> (PeerID, T) {
+    pub fn into_verified(self) -> (PeerID, T) {
         let peer_id = self.verify();
         (peer_id, self.data)
     }

@@ -190,7 +190,7 @@ impl ConnectionPool {
         connections.len()
     }
 
-    pub async fn prepare_discover_peers_response(&self, n: &PeerID, p: DiscoverPeersPacket) -> DiscoverPeersRespPacket {
+    pub async fn prepare_discover_peers_response(&self, _n: &PeerID, p: DiscoverPeersPacket) -> DiscoverPeersRespPacket {
         let connections = self.connections.lock().await;
         let mut peers = Vec::new();
         for (peer_id, peer) in connections.iter() {
@@ -199,6 +199,8 @@ impl ConnectionPool {
             }
         }
         std::mem::drop(connections); // Release the lock
+
+        // TODO: Use the n parameter in prepare_discover_peers_response
 
         // TODO [#23]: Avoid returning the peer that makes the request when certain conditions are met
 

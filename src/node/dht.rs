@@ -45,11 +45,7 @@ impl DhtStore {
 #[derive(Debug)]
 enum SingleProviderLookupError {
     FailedToConnect,
-    IdentityMismatch,
-    PacketTooLarge,
-    UnexpectedPacket,
     RequestIdMismatch,
-    FailedToInsert,
     IoError(std::io::Error),
     ProtocolError(protocol::Error),
     HandshakeError(HandshakeError),
@@ -104,7 +100,7 @@ impl Node {
         // Here we are handshaking but we don't insert the node so it does not benefits from all features our node may provide.
         // It's ok but we have to tell the other node to not consider ourselves like a long-time node, but rather a short term connection that will only exchange one request and response.
 
-        let (mut r, mut w) = connect(addr).await.ok_or(FailedToConnect)?.into_split();
+        let (r, w) = connect(addr).await.ok_or(FailedToConnect)?.into_split();
         debug!(self.ll, "Connected to {}", peer_id);
         let peer_id = self.handshake(r, w, Some(peer_id)).await.map_err(HandshakeError)?;
         debug!(self.ll, "Handshake with {} completed", peer_id);

@@ -245,7 +245,7 @@ impl Node {
                 return Err(SamePeer);
             },
         };
-        let aes_key: AesKey<aes_gcm::aead::generic_array::typenum::U32> = AesKey::clone_from_slice(&aes_key);
+        let _aes_key: AesKey<aes_gcm::aead::generic_array::typenum::U32> = AesKey::clone_from_slice(&aes_key);
 
         // TODO [#27]: Encrypt with AES the next packets
 

@@ -1,6 +1,8 @@
 // Copyright (c) 2022  Mubelotix <mubelotix@gmail.com>
 // Program licensed under GNU AGPL v3 or later. See the LICENSE file for details.
 
+#![allow(clippy::needless_range_loop)]
+
 use crate::util::uninit_array;
 use std::hint::unreachable_unchecked;
 
@@ -27,7 +29,7 @@ impl PeerID {
         &self.bytes
     }
 
-    pub fn matches(&self, other: &PeerID, mask: &Vec<u8>) -> bool {
+    pub fn matches(&self, other: &PeerID, mask: &[u8]) -> bool {
         debug_assert!(mask.len() <= 32);
         for i in 0..mask.len() {
             if self.bytes[i] & mask[i] != other.bytes[i] & mask[i] {
