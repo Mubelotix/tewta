@@ -1,12 +1,9 @@
 // Copyright (c) 2022  Mubelotix <mubelotix@gmail.com>
 // Program licensed under GNU AGPL v3 or later. See the LICENSE file for details.
 
-use std::{sync::Arc, task::{Poll, Waker}, pin::Pin};
-use async_mutex::{Mutex, MutexGuardArc};
-use futures::{future::BoxFuture, FutureExt};
+use crate::prelude::*;
 use tokio::io::{AsyncRead, AsyncWrite};
-use rand::Rng;
-use log::*;
+use std::pin::Pin;
 
 #[cfg(not(feature = "test"))]
 pub type TcpStream = tokio::net::TcpStream;
@@ -115,7 +112,7 @@ pub mod testing {
             cx: &mut std::task::Context<'_>,
             buf: &mut tokio::io::ReadBuf<'_>,
         ) -> std::task::Poll<std::io::Result<()>> {
-            trace!("ReadHalf {}{}: polled", self.log_id.0, ['A', 'B'][self.log_id.1 as usize]);
+            trace!(LogLevel::from(0), "ReadHalf {}{}: polled", self.log_id.0, ['A', 'B'][self.log_id.1 as usize]);
 
             // TODO [#8]: optimization: don't update if unchanged
             // Updating waker
@@ -127,7 +124,7 @@ pub mod testing {
                 self.waker_lock_fut = None;
                 
                 *waker = Some(cx.waker().clone());
-                trace!("ReadHalf {}{}: waker updated", self.log_id.0, ['A', 'B'][self.log_id.1 as usize]);
+                trace!(LogLevel::from(0), "ReadHalf {}{}: waker updated", self.log_id.0, ['A', 'B'][self.log_id.1 as usize]);
             }
             
             // Checking readable
@@ -139,7 +136,7 @@ pub mod testing {
                 self.lock_fut = None;
                 
                 if !data.is_empty() {
-                    trace!("ReadHalf {}{}: data ready", self.log_id.0, ['A', 'B'][self.log_id.1 as usize]);
+                    trace!(LogLevel::from(0), "ReadHalf {}{}: data ready", self.log_id.0, ['A', 'B'][self.log_id.1 as usize]);
                     if buf.remaining() < data.len() {
                         let size = buf.remaining();
                         buf.put_slice(&data[..size]);
@@ -150,7 +147,7 @@ pub mod testing {
                     }
                     return Poll::Ready(Ok(()));
                 } else {
-                    trace!("ReadHalf {}{}: not readable", self.log_id.0, ['A', 'B'][self.log_id.1 as usize]);
+                    trace!(LogLevel::from(0), "ReadHalf {}{}: not readable", self.log_id.0, ['A', 'B'][self.log_id.1 as usize]);
                 }
             }
             
@@ -175,7 +172,7 @@ pub mod testing {
     
                     data.extend_from_slice(buf);
                     self.wrote = true;
-                    trace!("WriteHalf {}{}: wrote {} bytes", self.log_id.0, ['A', 'B'][self.log_id.1 as usize], buf.len());
+                    trace!(LogLevel::from(0), "WriteHalf {}{}: wrote {} bytes", self.log_id.0, ['A', 'B'][self.log_id.1 as usize], buf.len());
                 }
             }
             
@@ -190,9 +187,9 @@ pub mod testing {
                     
                     if let Some(waker) = waker.clone() {
                         waker.wake();
-                        trace!("WriteHalf {}{}: woke read half", self.log_id.0, ['A', 'B'][self.log_id.1 as usize]);
+                        trace!(LogLevel::from(0), "WriteHalf {}{}: woke read half", self.log_id.0, ['A', 'B'][self.log_id.1 as usize]);
                     } else {
-                        trace!("WriteHalf {}{}: did not wake", self.log_id.0, ['A', 'B'][self.log_id.1 as usize]);
+                        trace!(LogLevel::from(0), "WriteHalf {}{}: did not wake", self.log_id.0, ['A', 'B'][self.log_id.1 as usize]);
                     }
                     self.woke = true;
                 }

@@ -1,7 +1,7 @@
 // Copyright (c) 2022  Mubelotix <mubelotix@gmail.com>
 // Program licensed under GNU AGPL v3 or later. See the LICENSE file for details.
 
-use super::*;
+use crate::prelude::*;
 use HandshakeError::*;
 
 // TODO [#13]: HandshakeError should implement Display

@@ -1,10 +1,7 @@
 // Copyright (c) 2022  Mubelotix <mubelotix@gmail.com>
 // Program licensed under GNU AGPL v3 or later. See the LICENSE file for details.
 
-use protocol::*;
-use protocol_derive::*;
-use std::collections::BTreeMap;
-use crate::peers::{PeerID, KeyID};
+use crate::prelude::*;
 
 #[derive(Protocol, Debug, Clone)]
 pub enum Packet {
@@ -135,7 +132,7 @@ pub struct FindDhtValueRespPacket {
 #[derive(Protocol, Debug, Clone)]
 pub enum DhtLookupResult {
     /// The value was found.
-    Found(Vec<crate::node::DhtValue>),
+    Found(Vec<DhtValue>),
     /// The value was not found, but here are some peers that might have it.
     /// Same particularities as [FindPeerRespPacket::peers]
     NotFound(Vec<(PeerID, String)>),
@@ -163,12 +160,13 @@ pub struct FindPeerRespPacket {
     pub peers: Vec<(PeerID, String)>,
 }
 
-/// TODO [#38]: Kademlia store value
 #[derive(Protocol, Debug, Clone)]
 pub struct StoreDhtValuePacket {
-
+    /// The key-id. 
+    pub key_id: KeyID,
+    /// The value to store.
+    pub value: SignedData<DhtValue>,
 }
-
 
 #[derive(Protocol, Debug, Clone, Copy)]
 pub struct PingPacket {

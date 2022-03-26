@@ -1,11 +1,20 @@
 // Copyright (c) 2022  Mubelotix <mubelotix@gmail.com>
 // Program licensed under GNU AGPL v3 or later. See the LICENSE file for details.
 
-pub use super::*;
+use crate::prelude::*;
 
+/// A record of contact information to a peer claiming to distribute a snapshot of the account.
 #[derive(Debug, Clone, protocol_derive::Protocol)]
 pub struct DhtValue {
-    pub data: String,
+    pub cached_addr: Option<String>,
+    pub account_snapshot_desc: SignedData<AccountSnapshotDescriptor>,
+    // pub peer_id: PeerID, // ommited as it is obtainable from SignedData<DhtValue>
+}
+
+#[derive(Debug, Clone, protocol_derive::Protocol)]
+pub struct DhtSignature {
+    pub public_key: Vec<u8>,
+    pub signature: Vec<u8>,
 }
 
 #[derive(Default)]
@@ -27,6 +36,7 @@ impl DhtStore {
     }
 
     pub async fn set(&self, key: KeyID, value: DhtValue) {
+        // TODO: check data (signature and timestamps)
         let mut table = self.table.lock().await;
         table.entry(key).or_insert_with(Vec::new).push(value);
     }

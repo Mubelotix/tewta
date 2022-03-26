@@ -1,7 +1,7 @@
 // Copyright (c) 2022  Mubelotix <mubelotix@gmail.com>
 // Program licensed under GNU AGPL v3 or later. See the LICENSE file for details.
 
-use super::*;
+use crate::prelude::*;
 
 #[cfg(not(feature = "test"))]
 pub type ReadHalf = tokio::net::tcp::OwnedReadHalf;

@@ -4,6 +4,8 @@
 #![allow(clippy::uninit_vec)]
 #![allow(clippy::uninit_assumed_init)]
 
+#[macro_use]
+pub mod logging;
 pub mod commands;
 pub mod stream;
 pub mod node;
@@ -11,15 +13,10 @@ pub mod packets;
 pub mod peers;
 pub mod util;
 pub mod signed_data;
-#[macro_use]
-pub mod logging;
+pub mod prelude;
+pub mod account;
 
-#[allow(unused_imports)]
-use crate::{stream::*, commands::*, node::*, packets::*, peers::*, util::*, logging::*};
-
-use std::sync::Arc;
-use async_mutex::Mutex;
-use async_channel::Sender;
+use prelude::*;
 
 #[cfg(feature = "test")]
 pub static mut NODE_COUNT: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
@@ -32,7 +29,7 @@ lazy_static::lazy_static!(
 
 // TODO [#1]: error handling
 #[cfg(feature = "test")]
-async fn connect(addr: String) -> Option<TcpStream> {
+pub async fn connect(addr: String) -> Option<TcpStream> {
     if !addr.starts_with("local-") {
         panic!("Only local-* addresses are supported for testing");
     }
@@ -52,7 +49,7 @@ async fn connect(addr: String) -> Option<TcpStream> {
 }
 
 #[cfg(not(feature = "test"))]
-async fn connect(_addr: String) -> Option<TcpStream> {
+pub async fn connect(_addr: String) -> Option<TcpStream> {
     unimplemented!()
 }
 

@@ -1,7 +1,7 @@
 // Copyright (c) 2022  Mubelotix <mubelotix@gmail.com>
 // Program licensed under GNU AGPL v3 or later. See the LICENSE file for details.
 
-use super::*;
+use crate::prelude::*;
 
 impl Node {
     pub async fn discover_peers_in_bucket(&self, bucket_level: usize, bucket_id: usize) {

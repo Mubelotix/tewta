@@ -1,7 +1,7 @@
 // Copyright (c) 2022  Mubelotix <mubelotix@gmail.com>
 // Program licensed under GNU AGPL v3 or later. See the LICENSE file for details.
 
-use super::*;
+use crate::prelude::*;
 
 pub struct Node {
     pub connections: ConnectionPool,
@@ -212,7 +212,7 @@ impl Node {
                 log::info!("{}", self.peer_id);
             }
             Command::Store { key, value } => {
-                self.dht.set(key, DhtValue {data: value}).await;
+                //self.dht.set(key, DhtValue {data: value}).await;
             }
             Command::Find { key } => {
                 self.dht_lookup(key).await;
