@@ -19,7 +19,7 @@ impl<T: Parcel> SignedData<T> {
         let n = rsa::BigUint::from_bytes_le(&self.rsa_public_key_modulus);
         let e = rsa::BigUint::from_bytes_le(&self.rsa_public_key_exponent);
         let rsa_public_key = RsaPublicKey::new(n, e).unwrap();
-        // TODO: Error handling in SignedData::verify
+        // TODO [#53]: Error handling in SignedData::verify
 
         let bytes = self.data.raw_bytes(&PROTOCOL_SETTINGS).unwrap();
         rsa_public_key.verify(PaddingScheme::new_oaep::<Sha256>(), &bytes, &self.signature).unwrap();
@@ -41,7 +41,7 @@ impl<T> Signable for T where T: Parcel {
     fn sign(self, rsa_public_key: RsaPublicKey, rsa_private_key: RsaPrivateKey) -> SignedData<Self> {
 
         let bytes = self.raw_bytes(&PROTOCOL_SETTINGS).unwrap();
-        // TODO: Error handling in DhtValue::sign
+        // TODO [#54]: Error handling in DhtValue::sign
 
         let mut hasher = Sha256::new();
         hasher.update(bytes);
