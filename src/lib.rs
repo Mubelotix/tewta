@@ -10,6 +10,7 @@ pub mod node;
 pub mod packets;
 pub mod peers;
 pub mod util;
+pub mod signed_data;
 #[macro_use]
 pub mod logging;
 
