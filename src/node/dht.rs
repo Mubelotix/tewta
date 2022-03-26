@@ -36,7 +36,7 @@ impl DhtStore {
     }
 
     pub async fn set(&self, key: KeyID, value: DhtValue) {
-        // TODO [$623f7ac17e434c0008704577]: check data (signature and timestamps)
+        // TODO [#52]: check data (signature and timestamps)
         let mut table = self.table.lock().await;
         table.entry(key).or_insert_with(Vec::new).push(value);
     }
