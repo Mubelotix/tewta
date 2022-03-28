@@ -200,7 +200,7 @@ impl ConnectionPool {
         }
         std::mem::drop(connections); // Release the lock
 
-        // TODO: Use the n parameter in prepare_discover_peers_response
+        // TODO [#55]: Use the n parameter in prepare_discover_peers_response
 
         // TODO [#23]: Avoid returning the peer that makes the request when certain conditions are met
 
