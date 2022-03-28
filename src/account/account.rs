@@ -6,7 +6,7 @@ use crate::prelude::*;
 pub struct UserMention {
     pub username: String,
     pub peer_id: PeerID,
-    // TODO [$6241fef02a4e9700089fcb03]: Add timestamp in cache
+    // TODO [#61]: Add timestamp in cache
     /// Cached internet address for that peer_id. Might have changed
     pub cached_addr: Option<String>,
     /// Cached addresses for providers of that peer_id. Might have changed
@@ -47,13 +47,13 @@ pub struct AccountData {
     /// This might not be exhaustive, see the next field for retrieving the total count
     pub following: Vec<UserMention>,
     pub following_count: u32,
-    /// TODO [$6241fef02a4e9700089fcb04]: Doc
+    /// TODO [#62]: Doc
     pub backup_peer_id: PeerID,
 
     /// Optional custom properties that implementations are free to use.
     /// Keys should be prefixed by the implementation name.
     /// 
-    /// TODO [$6241fef02a4e9700089fcb05]: Add generic common keys
+    /// TODO [#63]: Add generic common keys
     pub props: BTreeMap<String, PropValue>,
 }
 
