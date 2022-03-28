@@ -15,6 +15,8 @@ pub mod util;
 pub mod signed_data;
 pub mod prelude;
 pub mod account;
+pub mod segmented_array;
+pub mod hash;
 
 use prelude::*;
 
