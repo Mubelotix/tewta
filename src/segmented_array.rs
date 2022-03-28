@@ -66,7 +66,7 @@ impl<T: Hash + Clone + std::fmt::Debug> From<Vec<T>> for SegmentedArray<T> {
             while !segments.is_empty() {
                 let mut new_segmented_array = Vec::new();
                 for _ in 0..std::cmp::min(16, segments.len()) {
-                    // TODO: Unsafe optimization (avoid removing first element)
+                    // TODO [#60]: Unsafe optimization (avoid removing first element)
                     new_segmented_array.push(segments.remove(0));
                 }
                 new_segments.push(Segment::SegmentedArray(SegmentedArray {

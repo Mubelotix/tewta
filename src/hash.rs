@@ -11,7 +11,7 @@ impl<T: Parcel> Hash for T {
     fn hash(&self) -> Box<[u8; 32]> {
         use sha2::{Sha256, Digest};
 
-        // TODO: Error handling in Hash
+        // TODO [#58]: Error handling in Hash
         let bytes = self.raw_bytes(&PROTOCOL_SETTINGS).unwrap();
 
         let mut hasher = Sha256::new();
@@ -25,4 +25,4 @@ impl<T: Parcel> Hash for T {
     }
 }
 
-// TODO: optimize hash implementation for other types
+// TODO [#59]: optimize hash implementation for other types
