@@ -34,7 +34,7 @@ pub enum Packet {
 /// It MUST never change.
 #[derive(Protocol, Debug, Clone)]
 pub struct ProtocolVersionPacket {
-    /// Constant, equal to "p2pnet"
+    /// Constant, equal to "tewta"
     pub protocol: String,
     /// The supported [semver](https://semver.org/) versions of the protocol.
     /// Nodes will select the highest commonly supported version.

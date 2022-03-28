@@ -98,7 +98,7 @@ impl Node {
         // Send our protocol version
         trace!(self.ll, "Sending protocol version");
         let p = Packet::ProtocolVersion(ProtocolVersionPacket {
-            protocol: "p2pnet".to_string(),
+            protocol: "tewta".to_string(),
             supported_versions: vec![PROTOCOL_VERSION],
         });
         let p = p.raw_bytes(&PROTOCOL_SETTINGS)?;

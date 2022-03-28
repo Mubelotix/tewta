@@ -3,7 +3,7 @@
 
 mod common;
 use crate::common::*;
-use p2pnet::{commands::*, RUNNING_COMMAND_COUNTER};
+use tewta::{commands::*, RUNNING_COMMAND_COUNTER};
 use std::io::Write;
 
 #[tokio::main]

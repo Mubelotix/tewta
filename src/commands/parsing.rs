@@ -9,7 +9,7 @@ impl Command {
         let input = unsafe { std::str::from_utf8_unchecked(input) };
         let input = input.trim();
         
-        let mut args = vec!["p2pnet"];
+        let mut args = vec!["Tewta"];
         args.extend(input.split(' '));
         let command = Command::from_iter_safe(args)?;
 

@@ -3,7 +3,7 @@
 
 mod common;
 use crate::common::*;
-use p2pnet::commands::Command;
+use tewta::commands::Command;
 
 #[tokio::test]
 async fn test_dht() {

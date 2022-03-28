@@ -4,7 +4,7 @@
 use std::{sync::Arc, io::Write};
 use async_channel::{Receiver, Sender};
 #[allow(unused_imports)]
-use p2pnet::{stream::*, commands::*, node::*, packets::*, peers::*, util::*, logging::*, *};
+use tewta::{stream::*, commands::*, node::*, packets::*, peers::*, util::*, logging::*, *};
 
 pub use {
     tokio::time::sleep,
