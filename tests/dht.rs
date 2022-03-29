@@ -32,7 +32,7 @@ async fn test_dht() {
         account_snapshot_desc: AccountSnapshotDescriptor {
             timestamp: 0,
             hash: Vec::new(),
-        }.sign(&nodes[0].rsa_public_key, &nodes[0].rsa_private_key),
+        }.sign(&nodes[0].rsa_public_key, &nodes[0].rsa_private_key).unwrap(),
     }).await;
     sleep(Duration::from_secs(1)).await;
 

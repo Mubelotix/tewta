@@ -14,11 +14,10 @@ pub struct SignedData<T: Parcel> {
 }
 
 impl<T: Parcel> SignedData<T> {
-    pub fn verify(&self) -> PeerID {
+    pub fn verify(&self) -> Result<PeerID, rsa::errors::Error> {
         let n = rsa::BigUint::from_bytes_le(&self.rsa_public_key_modulus);
         let e = rsa::BigUint::from_bytes_le(&self.rsa_public_key_exponent);
-        let rsa_public_key = RsaPublicKey::new(n, e).unwrap();
-        // TODO [#53]: Error handling in SignedData::verify
+        let rsa_public_key = RsaPublicKey::new(n, e)?;
 
         // TODO: we shouldn't hash this way because it makes SegmentedArray useless
         let bytes = self.data.raw_bytes(&PROTOCOL_SETTINGS).unwrap();
@@ -26,26 +25,24 @@ impl<T: Parcel> SignedData<T> {
         hasher.update(bytes);
         let hash = hasher.finalize();
 
-        rsa_public_key.verify(PaddingScheme::new_pss::<Sha256, OsRng>(OsRng), &hash, &self.signature).unwrap();
+        rsa_public_key.verify(PaddingScheme::new_pss::<Sha256, OsRng>(OsRng), &hash, &self.signature)?;
 
-        PeerID::from(&rsa_public_key)
+        Ok(PeerID::from(&rsa_public_key))
     }
 
-    pub fn into_verified(self) -> (PeerID, T) {
-        let peer_id = self.verify();
-        (peer_id, self.data)
+    pub fn into_verified(self) -> Result<(PeerID, T), rsa::errors::Error> {
+        let peer_id = self.verify()?;
+        Ok((peer_id, self.data))
     }
 }
 
 pub trait Signable: Parcel {
-    fn sign(self, rsa_public_key: &RsaPublicKey, rsa_private_key: &RsaPrivateKey) -> SignedData<Self>;
+    fn sign(self, rsa_public_key: &RsaPublicKey, rsa_private_key: &RsaPrivateKey) -> Result<SignedData<Self>, rsa::errors::Error>;
 }
 
 impl<T> Signable for T where T: Parcel {
-    fn sign(self, rsa_public_key: &RsaPublicKey, rsa_private_key: &RsaPrivateKey) -> SignedData<Self> {
-
+    fn sign(self, rsa_public_key: &RsaPublicKey, rsa_private_key: &RsaPrivateKey) -> Result<SignedData<Self>, rsa::errors::Error> {
         let bytes = self.raw_bytes(&PROTOCOL_SETTINGS).unwrap();
-        // TODO [#54]: Error handling in DhtValue::sign
 
         let mut hasher = Sha256::new();
         hasher.update(bytes);
@@ -53,14 +50,14 @@ impl<T> Signable for T where T: Parcel {
 
         // TODO: Investigate security implications of the PSS padding scheme
         // Can we just ignore the salt lenght?
-        let signature = rsa_private_key.sign(PaddingScheme::new_pss::<Sha256, OsRng>(OsRng), hash.as_slice()).unwrap();
+        let signature = rsa_private_key.sign(PaddingScheme::new_pss::<Sha256, OsRng>(OsRng), hash.as_slice())?;
 
-        SignedData {
+        Ok(SignedData {
             data: self,
             rsa_public_key_exponent: rsa_public_key.e().to_bytes_le(),
             rsa_public_key_modulus: rsa_public_key.n().to_bytes_le(),
             signature,
-        }
+        })
     }
 }
 
@@ -77,10 +74,10 @@ mod tests {
 
         // Sign data
         let data = Packet::Ping(PingPacket { ping_id: 0 });
-        let signed_data = data.sign(&public_key, &private_key);
+        let signed_data = data.sign(&public_key, &private_key).unwrap();
         
         // Verify data
-        let verified_peer_id = signed_data.verify();
+        let verified_peer_id = signed_data.verify().unwrap();
         assert_eq!(peer_id, verified_peer_id);
     }
 }
