@@ -109,15 +109,20 @@ impl ConnectionPool {
         };
     }
 
-    pub async fn disconnect(&self, n: &PeerID, quit_packet: QuitPacket) {
-        // Send the quit packet
-        self.send_packet_unchecked(n, Packet::Quit(quit_packet)).await;
-
-        // Remove the node and stop reading packets
+    pub async fn disconnect(&self, n: PeerID, quit_packet: QuitPacket) {
         let node = self.get_node().unwrap();
+
+        // Send the quit packet
+        self.send_packet_unchecked(&n, Packet::Quit(quit_packet)).await;
+
+        // Remove the peer and stop reading its packets
         let mut connections = self.connections.lock().await;
-        match connections.remove(n) {
-            Some(peer) => peer.read_stream_task.abort(),
+        match connections.remove(&n) {
+            Some(peer) => {
+                peer.read_stream_task.abort();
+                std::mem::drop(connections);
+                node.on_disconnect.event(n).await;
+            },
             None => warn!(node.ll, "already disconnected {}", n),
         }
     }

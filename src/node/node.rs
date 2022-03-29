@@ -29,6 +29,8 @@ pub struct Node {
     pub on_find_peer_packet: EventListeners<(PeerID, FindPeerPacket)>,
     pub on_find_peer_resp_packet: EventListeners<(PeerID, FindPeerRespPacket)>,
     pub on_store_dht_value_packet: EventListeners<(PeerID, StoreDhtValuePacket)>,
+
+    pub on_disconnect: EventListeners<PeerID>,
 }
 
 impl Node {
@@ -65,6 +67,8 @@ impl Node {
             on_find_peer_packet: EventListeners::default(),
             on_find_peer_resp_packet: EventListeners::default(),
             on_store_dht_value_packet: EventListeners::default(),
+
+            on_disconnect: EventListeners::default(),
         });
 
         // JUSTIFICATION
@@ -101,17 +105,17 @@ impl Node {
                     let node = Arc::clone(&node);
                     spawn(async move {
                         // Send ping
-                        let peer_id = &peer_id;
                         let ping_id = node.ping_id_counter.next();
                         let start = Instant::now();
-                        node.connections.send_packet(peer_id, Packet::Ping(PingPacket { ping_id })).await;
+                        node.connections.send_packet(&peer_id, Packet::Ping(PingPacket { ping_id })).await;
 
                         // Receive pong
                         let pong_receiver = node.on_pong_packet.listen().await;
+                        let peer_id2 = &peer_id;
                         let result = timeout(Duration::from_secs(30), async move {
                             loop {
                                 let (n, pong) = pong_receiver.recv().await.unwrap();
-                                if pong.ping_id == ping_id && &n == peer_id {
+                                if pong.ping_id == ping_id && &n == peer_id2 {
                                     break Instant::now().duration_since(start);
                                 }
                             }
@@ -119,7 +123,7 @@ impl Node {
 
                         // Handle result
                         match result {
-                            Ok(d) => node.connections.set_ping(peer_id, d.as_nanos() as usize).await,
+                            Ok(d) => node.connections.set_ping(&peer_id, d.as_nanos() as usize).await,
                             Err(_) => {                                     
                                 warn!(node.ll, "Connection timed out, disconnecting {}", peer_id);
                                 let quit_packet = QuitPacket {
@@ -148,6 +152,17 @@ impl Node {
                 };
 
                 node.connections.refresh_buckets().await;
+            }
+        });
+
+        // Update buckets on disconnect (this cannot be done in a method due to borrow checker limitations)
+        let node2 = Arc::downgrade(&node);
+        let listener = node.on_disconnect.listen().await;
+        spawn(async move {
+            let node = node2;
+            loop {
+                let _ = listener.recv().await;
+                node.upgrade().unwrap().connections.refresh_buckets().await;
             }
         });
 
@@ -361,11 +376,7 @@ impl Node {
                     message: None,
                     report_fault: false
                 };
-                self.connections.disconnect(&n, quit_packet).await;
-
-                // TODO [#45]: Refresh buckets to fill an eventual hole after the disconnect
-                // This below does not work as the compiler has troubles with some checks
-                // self.connections.refresh_buckets().await;
+                self.connections.disconnect(n.clone(), quit_packet).await;
 
                 self.on_quit_packet.event((n, p)).await;
             }

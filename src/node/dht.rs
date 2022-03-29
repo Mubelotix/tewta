@@ -131,7 +131,7 @@ impl Node {
             message: None,
             report_fault: false,
         };
-        self.connections.disconnect(&peer_id, quit_packet).await;
+        self.connections.disconnect(peer_id, quit_packet).await;
 
         if p.request_id != request_id {
             return Err(RequestIdMismatch);
