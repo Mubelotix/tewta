@@ -1,10 +1,9 @@
 // Copyright (c) 2022  Mubelotix <mubelotix@gmail.com>
 // Program licensed under GNU AGPL v3 or later. See the LICENSE file for details.
 
-use protocol::Parcel;
-use rsa::{RsaPrivateKey, PaddingScheme, RsaPublicKey, PublicKeyParts, PublicKey};
-use crate::{constants::PROTOCOL_SETTINGS, peers::PeerID};
 use sha2::{Digest, Sha256};
+use rsa::{RsaPrivateKey, PaddingScheme, RsaPublicKey, PublicKeyParts, PublicKey};
+use crate::prelude::*;
 
 #[derive(Debug, Clone, protocol_derive::Protocol)]
 pub struct SignedData<T: Parcel> {
@@ -21,8 +20,13 @@ impl<T: Parcel> SignedData<T> {
         let rsa_public_key = RsaPublicKey::new(n, e).unwrap();
         // TODO [#53]: Error handling in SignedData::verify
 
+        // TODO: we shouldn't hash this way because it makes SegmentedArray useless
         let bytes = self.data.raw_bytes(&PROTOCOL_SETTINGS).unwrap();
-        rsa_public_key.verify(PaddingScheme::new_oaep::<Sha256>(), &bytes, &self.signature).unwrap();
+        let mut hasher = Sha256::new();
+        hasher.update(bytes);
+        let hash = hasher.finalize();
+
+        rsa_public_key.verify(PaddingScheme::new_pss::<Sha256, OsRng>(OsRng), &hash, &self.signature).unwrap();
 
         PeerID::from(&rsa_public_key)
     }
@@ -47,7 +51,9 @@ impl<T> Signable for T where T: Parcel {
         hasher.update(bytes);
         let hash = hasher.finalize();
 
-        let signature = rsa_private_key.sign(PaddingScheme::new_oaep::<Sha256>(), hash.as_slice()).unwrap();
+        // TODO: Investigate security implications of the PSS padding scheme
+        // Can we just ignore the salt lenght?
+        let signature = rsa_private_key.sign(PaddingScheme::new_pss::<Sha256, OsRng>(OsRng), hash.as_slice()).unwrap();
 
         SignedData {
             data: self,
@@ -55,5 +61,26 @@ impl<T> Signable for T where T: Parcel {
             rsa_public_key_modulus: rsa_public_key.n().to_bytes_le(),
             signature,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test() {
+        // Generate rsa keys 
+        let private_key = RsaPrivateKey::new(&mut OsRng, 512).expect("failed to generate a key");
+        let public_key = RsaPublicKey::from(&private_key);
+        let peer_id = PeerID::from(&public_key);
+
+        // Sign data
+        let data = Packet::Ping(PingPacket { ping_id: 0 });
+        let signed_data = data.sign(&public_key, &private_key);
+        
+        // Verify data
+        let verified_peer_id = signed_data.verify();
+        assert_eq!(peer_id, verified_peer_id);
     }
 }
