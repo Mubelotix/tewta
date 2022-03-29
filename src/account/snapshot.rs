@@ -5,6 +5,6 @@ use crate::prelude::*;
 
 #[derive(Debug, Clone, Protocol)]
 pub struct AccountSnapshotDescriptor {
-    timestamp: u64,
-    hash: Vec<u8>,
+    pub timestamp: u64,
+    pub hash: Vec<u8>,
 }

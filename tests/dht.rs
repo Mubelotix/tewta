@@ -3,7 +3,7 @@
 
 mod common;
 use crate::common::*;
-use tewta::commands::Command;
+use tewta::prelude::*;
 
 #[tokio::test]
 async fn test_dht() {
@@ -27,7 +27,13 @@ async fn test_dht() {
 
     // One peer adds the entry to the DHT
     let key = nodes[0].peer_id.to_owned();
-    command_sender[0].send(Command::Store { key: key.clone(), value: String::from("test") }).await.unwrap();
+    nodes[0].dht.set(key.clone(), DhtValue {
+        cached_addr: None,
+        account_snapshot_desc: AccountSnapshotDescriptor {
+            timestamp: 0,
+            hash: Vec::new(),
+        }.sign(&nodes[0].rsa_public_key, &nodes[0].rsa_private_key),
+    }).await;
     sleep(Duration::from_secs(1)).await;
 
     // The other node fetches that entry

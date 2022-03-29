@@ -211,9 +211,6 @@ impl Node {
             Command::Id => {
                 log::info!("{}", self.peer_id);
             }
-            Command::Store { key: _, value: _ } => {
-                // TODO [#56]: Implement the store command
-            }
             Command::Find { key } => {
                 self.dht_lookup(key).await;
             }

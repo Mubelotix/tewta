@@ -26,10 +26,6 @@ pub enum Command {
     Ping {
         node_id: crate::peers::PeerID,
     },
-    Store {
-        key: crate::peers::KeyID,
-        value: String,
-    },
     Find {
         key: crate::peers::KeyID,
     },

@@ -34,11 +34,11 @@ impl<T: Parcel> SignedData<T> {
 }
 
 pub trait Signable: Parcel {
-    fn sign(self, rsa_public_key: RsaPublicKey, rsa_private_key: RsaPrivateKey) -> SignedData<Self>;
+    fn sign(self, rsa_public_key: &RsaPublicKey, rsa_private_key: &RsaPrivateKey) -> SignedData<Self>;
 }
 
 impl<T> Signable for T where T: Parcel {
-    fn sign(self, rsa_public_key: RsaPublicKey, rsa_private_key: RsaPrivateKey) -> SignedData<Self> {
+    fn sign(self, rsa_public_key: &RsaPublicKey, rsa_private_key: &RsaPrivateKey) -> SignedData<Self> {
 
         let bytes = self.raw_bytes(&PROTOCOL_SETTINGS).unwrap();
         // TODO [#54]: Error handling in DhtValue::sign
