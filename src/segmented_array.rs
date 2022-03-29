@@ -62,12 +62,17 @@ impl<T: Hash + Clone + std::fmt::Debug> From<Vec<T>> for SegmentedArray<T> {
                 return SegmentedArray { segments };
             }
 
+            let mut segments_iter = segments.into_iter();
             let mut new_segments: Vec<Segment<T>> = Vec::new();
-            while !segments.is_empty() {
-                let mut new_segmented_array = Vec::new();
-                for _ in 0..std::cmp::min(16, segments.len()) {
-                    // TODO [#60]: Unsafe optimization (avoid removing first element)
-                    new_segmented_array.push(segments.remove(0));
+            
+            while let Some(segment) = segments_iter.next() {
+                let mut new_segmented_array = Vec::with_capacity(16);
+                new_segmented_array.push(segment);
+                for _ in 0..15 { // It's 15 and not 16 because we already have one item
+                    match segments_iter.next() {
+                        Some(segment) => new_segmented_array.push(segment),
+                        None => break,
+                    }
                 }
                 new_segments.push(Segment::SegmentedArray(SegmentedArray {
                     segments: new_segmented_array,
