@@ -37,8 +37,7 @@ impl Node {
                 if !peer_id.matches(&target, &mask) {
                     warn!(self.ll, "Response contains peers that do not match request");
                 }
-
-                // TODO [#30]: close connection properly
+                
                 let (r, w) = match connect(addr).await {
                     Some(s) => s.into_split(),
                     None => continue,
