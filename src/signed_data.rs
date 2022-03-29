@@ -20,7 +20,7 @@ impl<T: Parcel> SignedData<T> {
         let rsa_public_key = RsaPublicKey::new(n, e).unwrap();
         // TODO [#53]: Error handling in SignedData::verify
 
-        // TODO [$6242f460bd0d4b0009495504]: we shouldn't hash this way because it makes SegmentedArray useless
+        // TODO [#64]: we shouldn't hash this way because it makes SegmentedArray useless
         let bytes = self.data.raw_bytes(&PROTOCOL_SETTINGS).unwrap();
         let mut hasher = Sha256::new();
         hasher.update(bytes);
@@ -51,7 +51,7 @@ impl<T> Signable for T where T: Parcel {
         hasher.update(bytes);
         let hash = hasher.finalize();
 
-        // TODO [$6242f460bd0d4b0009495505]: Investigate security implications of the PSS padding scheme
+        // TODO [#65]: Investigate security implications of the PSS padding scheme
         // Can we just ignore the salt lenght?
         let signature = rsa_private_key.sign(PaddingScheme::new_pss::<Sha256, OsRng>(OsRng), hash.as_slice()).unwrap();
 
