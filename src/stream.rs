@@ -114,7 +114,6 @@ pub mod testing {
         ) -> std::task::Poll<std::io::Result<()>> {
             trace!(LogLevel::from(0), "ReadHalf {}{}: polled", self.log_id.0, ['A', 'B'][self.log_id.1 as usize]);
 
-            // TODO [#8]: optimization: don't update if unchanged
             // Updating waker
             if self.waker_lock_fut.is_none() {
                 let self_waken_on_readable = Arc::clone(&self.waken_on_readable);
