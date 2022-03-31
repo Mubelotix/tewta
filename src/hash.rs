@@ -7,21 +7,17 @@ pub trait Hash {
     fn hash(&self) -> Box<[u8; 32]>;
 }
 
-impl<T: Parcel> Hash for T {
+impl<T: Hashable> Hash for T {
     fn hash(&self) -> Box<[u8; 32]> {
         use sha2::{Sha256, Digest};
 
-        let bytes = self.raw_bytes(&PROTOCOL_SETTINGS).unwrap();
-        
         let mut hasher = Sha256::new();
-        hasher.update(bytes.as_slice());
+        self.update_hasher(&mut hasher);
         let result = hasher.finalize();
 
-        let mut hash: Box<[u8; 32]> = Box::new(unsafe { uninit_array() });
+        let mut hash = Box::new(unsafe {uninit_array()});
         hash.copy_from_slice(&result);
 
         hash
     }
 }
-
-// TODO [#59]: optimize hash implementation for other types

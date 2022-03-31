@@ -35,6 +35,7 @@ pub use {
     futures::{future::BoxFuture, FutureExt},
     rsa::{RsaPrivateKey, RsaPublicKey, PublicKeyParts, PaddingScheme, PublicKey},
     aes_gcm::{Aes256Gcm, Key as AesKey, Nonce as AesNonce},
+    sha2_derive::*,
     rand::{rngs::OsRng, Rng},
     async_mutex::{Mutex, MutexGuardArc},
     async_channel::{Sender, Receiver},
