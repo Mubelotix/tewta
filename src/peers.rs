@@ -3,6 +3,7 @@
 
 #![allow(clippy::needless_range_loop)]
 
+use crate::prelude::*;
 use crate::util::uninit_array;
 use std::hint::unreachable_unchecked;
 
@@ -131,9 +132,6 @@ impl PeerID {
 impl From<&rsa::RsaPublicKey> for PeerID {
     /// `peer_id = sha512(exponent + modulus)` where exponent and modulus bytes are reprensented as little endian
     fn from(key: &rsa::RsaPublicKey) -> Self {
-        use rsa::PublicKeyParts;
-        use sha2::{Digest, Sha256};
-
         let mut e = key.e().to_bytes_le();
         let n = key.n().to_bytes_le();
         e.extend(n);
@@ -194,6 +192,12 @@ impl protocol::Parcel for PeerID {
 
     fn write_field(&self, write: &mut dyn std::io::Write, settings: &protocol::Settings, hints: &mut protocol::hint::Hints) -> Result<(), protocol::Error> {
         self.bytes.write_field(write, settings, hints)
+    }
+}
+
+impl Hashable for PeerID {
+    fn update_hasher(&self, hasher: &mut impl Digest) {
+        hasher.update(self.bytes.as_ref());
     }
 }
 

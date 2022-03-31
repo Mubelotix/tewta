@@ -3,6 +3,7 @@
 
 use crate::prelude::*;
 
+#[derive(Debug, Hashable)]
 pub struct UserMention {
     pub username: String,
     pub peer_id: PeerID,
@@ -41,22 +42,21 @@ pub enum PropValue {
 
 pub struct AccountData {
     pub username: String,
-    /// This might not be exhaustive, see the next field for retrieving the total count
-    pub followers: Vec<UserMention>,
+    pub followers: SegmentedArray<UserMention, 32>,
     pub follower_count: u32,
-    /// This might not be exhaustive, see the next field for retrieving the total count
-    pub following: Vec<UserMention>,
+    pub following: SegmentedArray<UserMention, 32>,
     pub following_count: u32,
-    /// TODO [#62]: Doc
+    
+    /// The immutable peerID of an eventual backup account.
+    /// When updating account data, peers should check that this field matches exactly.
+    /// [Learn more](https://github.com/Mubelotix/tewta/wiki/account-recovery)
     pub backup_peer_id: PeerID,
 
     /// Optional custom properties that implementations are free to use.
     /// Keys should be prefixed by the implementation name.
-    /// 
-    /// TODO [#63]: Add generic common keys
+    /// [Learn more](https://github.com/Mubelotix/tewta/wiki/custom-account-properties)
     pub props: BTreeMap<String, PropValue>,
 }
-
 
 /// An incomplete representation of an account.
 pub struct AccountDataSnapshot {

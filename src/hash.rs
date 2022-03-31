@@ -9,8 +9,6 @@ pub trait Hash {
 
 impl<T: Hashable> Hash for T {
     fn hash(&self) -> Box<[u8; 32]> {
-        use sha2::{Sha256, Digest};
-
         let mut hasher = Sha256::new();
         self.update_hasher(&mut hasher);
         let result = hasher.finalize();
